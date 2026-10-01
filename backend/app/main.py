@@ -8,7 +8,7 @@ from fastapi.staticfiles import StaticFiles
 from app.config import settings
 from app.database import engine, Base, SessionLocal
 from app.seed import seed_data
-from app.routes import monuments, paintings, qa
+from app.routes import experience, monuments, paintings, qa
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -43,9 +43,12 @@ app = FastAPI(
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.CORS_ORIGINS,
+    allow_origin_regex=settings.CORS_ORIGIN_REGEX,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
+    # Lets the frontend read the cache-hit headers on the 3D Tiles root.
+    expose_headers=["X-Tiles-Session-Cached", "X-Tiles-Session-Age"],
 )
 
 # ---------------------------------------------------------------------------
@@ -54,6 +57,7 @@ app.add_middleware(
 app.include_router(monuments.router, prefix="", tags=["Monuments & POIs"])
 app.include_router(paintings.router, prefix="", tags=["Art Gallery"])
 app.include_router(qa.router, prefix="", tags=["AI Q&A"])
+app.include_router(experience.router, prefix="", tags=["Monument Experience"])
 
 
 @app.get("/", tags=["Root"])
@@ -68,10 +72,22 @@ def root():
             "paintings": "/paintings",
             "painting_info": "/painting-info/{painting_id}",
             "ask": "/ask  (POST)",
+            "experience": "/experience/1",
+            "tiles_session": "/maps/tiles-session",
+            "street_view_verify": "/maps/streetview/verify",
+            "quota": "/maps/quota",
         },
     }
 
 
 @app.get("/health", tags=["Root"])
 def health():
-    return {"status": "ok", "project": settings.PROJECT_NAME}
+    from app import cache
+
+    return {
+        "status": "ok",
+        "project": settings.PROJECT_NAME,
+        "maps_key_configured": bool(settings.GOOGLE_MAPS_API_KEY),
+        "gemini_key_configured": bool(settings.GEMINI_API_KEY),
+        "cache_entries": cache.stats(),
+    }

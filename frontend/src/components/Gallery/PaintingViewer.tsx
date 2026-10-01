@@ -14,6 +14,7 @@ import {
   Layers,
 } from 'lucide-react';
 import { PaintingAskBar } from './PaintingAskBar';
+import { LanguageDropdownUpward } from '../LanguageDropdownUpward';
 import { DEFAULT_LANGUAGE, DEFAULT_ACCENT } from '../../data/languages';
 import { getMuseumHeaders } from '../../utils/i18nHeaders';
 
@@ -579,15 +580,15 @@ export const PaintingViewer: React.FC<Props> = ({
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [goToNext, goToPrev, onClose, showSketchfabModal]);
 
-  // Update Stand Plaque Canvas Texture on language change
+  // Repaint the stand's plaque whenever the work or the language changes, so the
+  // label in the room is written in whatever language the visitor picked.
   useEffect(() => {
-    if (labelMeshRef.current) {
-      const newTex = buildLabelTexture(painting, language.id);
-      const mat = labelMeshRef.current.material as THREE.MeshBasicMaterial;
-      mat.map = newTex;
-      mat.needsUpdate = true;
-    }
-  }, [painting, language.id]);
+    if (!labelMeshRef.current || !activePainting) return;
+    const newTex = buildLabelTexture(activePainting, language.id);
+    const mat = labelMeshRef.current.material as THREE.MeshBasicMaterial;
+    mat.map = newTex;
+    mat.needsUpdate = true;
+  }, [activePainting, language.id]);
 
   // ── Initialize Scene Once (Mounts 1 Time) ───────────────────
   useEffect(() => {
@@ -1129,6 +1130,20 @@ export const PaintingViewer: React.FC<Props> = ({
             <span className="font-serif">{language.nativeName}</span>
             <span className="text-[10px] text-amber-400/80 font-mono">({accent.name})</span>
           </button>
+
+          {/* The picker itself. The button above only ever toggled a flag; the
+              panel that acts on it has to be mounted for the choice to stick. */}
+          <LanguageDropdownUpward
+            isOpen={isLangDropdownOpen}
+            onClose={() => setIsLangDropdownOpen(false)}
+            currentLanguage={language}
+            currentAccent={accent}
+            onSelect={(nextLanguage, nextAccent) => {
+              setLanguage(nextLanguage);
+              setAccent(nextAccent);
+              setIsLangDropdownOpen(false);
+            }}
+          />
 
           {/* Perspective switcher */}
           <div

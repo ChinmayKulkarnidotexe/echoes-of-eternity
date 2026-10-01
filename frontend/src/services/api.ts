@@ -1,4 +1,14 @@
-import type { POI, Painting, NarrationResponse, AskResponse } from '../types';
+import type {
+  AskContextType,
+  AskResponse,
+  ExperienceBundle,
+  NarrationResponse,
+  POI,
+  Painting,
+  TilesSessionStatus,
+} from '../types';
+import { FALLBACK_EXPERIENCE } from './fallbackExperience';
+import { readCache, writeCache } from '../lib/clientCache';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000';
 
@@ -211,8 +221,8 @@ export async function fetchPaintingInfo(
 }
 
 export async function askQuestion(
-  contextType: "poi" | "painting",
-  contextId: number,
+  contextType: AskContextType,
+  contextId: number | string,
   question: string,
   targetLang: string = "en",
 ): Promise<AskResponse> {
@@ -240,5 +250,67 @@ export async function askQuestion(
       context_id: contextId,
       context_title: "Heritage Item",
     };
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Monument experience
+// ---------------------------------------------------------------------------
+
+/** URL the Cesium renderer should load the Photorealistic 3D Tiles root from.
+ *
+ * Pointing at the backend rather than tile.googleapis.com is deliberate: Google
+ * bills the root tileset request and refuses a caller-supplied session token, so
+ * the only way for repeated page loads to share one billable session is to share
+ * the cached root document the backend holds.
+ */
+export const TILES_ROOT_URL = `${API_BASE_URL}/maps/3dtiles/root.json`;
+
+/** How long a locally cached bundle is served before re-fetching. */
+const EXPERIENCE_CACHE_MS = 12 * 60 * 60 * 1000;
+
+/**
+ * Fetch the full three-mode experience bundle in one request.
+ *
+ * Served from localStorage first when a recent copy is present, so a reload
+ * renders immediately instead of waiting on a round trip; the network copy then
+ * replaces it quietly. Falls back to the generated offline bundle so a dropped
+ * backend degrades the narration source, not the experience.
+ */
+export async function fetchExperience(
+  monumentId: number = 1,
+): Promise<{ bundle: ExperienceBundle; online: boolean }> {
+  const cacheKey = `experience:${monumentId}`;
+
+  try {
+    const res = await fetch(`${API_BASE_URL}/experience/${monumentId}`);
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const bundle = (await res.json()) as ExperienceBundle;
+    writeCache(cacheKey, bundle);
+    return { bundle, online: true };
+  } catch (err) {
+    const cached = readCache<ExperienceBundle>(cacheKey, EXPERIENCE_CACHE_MS);
+    if (cached) {
+      console.warn('Backend unreachable — using the locally cached bundle:', err);
+      return { bundle: cached, online: false };
+    }
+    console.warn('Backend unavailable — using the offline experience bundle:', err);
+    return { bundle: FALLBACK_EXPERIENCE, online: false };
+  }
+}
+
+/** The most recent bundle this browser holds, if any — used to render instantly. */
+export function peekCachedExperience(monumentId: number = 1): ExperienceBundle | null {
+  return readCache<ExperienceBundle>(`experience:${monumentId}`, EXPERIENCE_CACHE_MS);
+}
+
+/** Read the cached 3D Tiles session state. Never triggers a billable request. */
+export async function fetchTilesSession(): Promise<TilesSessionStatus> {
+  try {
+    const res = await fetch(`${API_BASE_URL}/maps/tiles-session`);
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    return await res.json();
+  } catch {
+    return { active: false };
   }
 }

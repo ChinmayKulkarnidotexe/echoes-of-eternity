@@ -1,4 +1,7 @@
 import logging
+import re
+import threading
+import time
 from functools import lru_cache
 from app.config import settings
 
@@ -97,25 +100,169 @@ PRECACHED_NARRATIONS: dict[str, str] = {
 
 # ---------------------------------------------------------------------------
 # Gemini client singleton
+#
+# Google retires Gemini model names on a rolling basis, and a retired name fails
+# at call time with a 404 rather than at configuration time — which, on stage,
+# looks exactly like "the AI is broken". So the configured model is tried first
+# and a short list of current flash models backs it up.
 # ---------------------------------------------------------------------------
-@lru_cache(maxsize=1)
-def _get_gemini_model():
-    """Return a configured Gemini GenerativeModel or None if the key is missing."""
-    if not settings.GEMINI_API_KEY:
-        logger.warning("GEMINI_API_KEY not set — running in pre-cached fallback mode.")
-        return None
-    try:
-        import google.generativeai as genai
+# Ordered by quality, but filtered by what the free tier will actually serve:
+# the headline flash models are capped at twenty requests per *day*, which a
+# single afternoon of testing exhausts, so the lite models sit behind them as
+# working backups. Verify with: python -m scripts.probe_quota
+FALLBACK_MODELS = [
+    "gemini-3.5-flash",
+    "gemini-flash-lite-latest",
+    "gemini-3.1-flash-lite",
+]
 
-        genai.configure(api_key=settings.GEMINI_API_KEY)
-        model = genai.GenerativeModel(
-            model_name=settings.GEMINI_MODEL,
-            system_instruction=SYSTEM_INSTRUCTION,
-        )
-        return model
-    except Exception as exc:
-        logger.error("Failed to initialise Gemini model: %s", exc)
+# The free tier caps requests per minute as well as per day, so calls are spaced
+# out rather than fired in a burst. This is why narration polishing is off by
+# default (see settings.GEMINI_POLISH_NARRATION): the daily allowance is better
+# spent on the visitor's live questions than on rewriting a script that is
+# already written.
+_FREE_TIER_RPM = 5
+_MIN_INTERVAL_S = 60.0 / _FREE_TIER_RPM
+_RATE_LOCK = threading.Lock()
+_last_call_at = 0.0
+
+
+def _throttle() -> None:
+    """Space calls out so we stay inside the free-tier requests-per-minute limit."""
+    global _last_call_at
+    with _RATE_LOCK:
+        wait = _MIN_INTERVAL_S - (time.monotonic() - _last_call_at)
+        if wait > 0:
+            time.sleep(wait)
+        _last_call_at = time.monotonic()
+
+
+def _retry_delay_seconds(error: Exception) -> float | None:
+    """Pull Google's suggested retry delay out of a 429, if it offered one."""
+    text = str(error)
+    if "429" not in text and "quota" not in text.lower():
         return None
+    match = re.search(r"retry_delay\s*{\s*seconds:\s*(\d+)", text)
+    if match:
+        return float(match.group(1)) + 1.0
+    match = re.search(r"retry in ([\d.]+)s", text)
+    if match:
+        return float(match.group(1)) + 1.0
+    return float(_MIN_INTERVAL_S)
+
+
+def _is_daily_quota(error: Exception) -> bool:
+    """A per-day cap is not worth waiting out — switch models instead."""
+    return "PerDay" in str(error)
+
+
+def _is_missing_model(error: Exception) -> bool:
+    text = str(error)
+    return "404" in text or "not found" in text.lower() or "no longer available" in text.lower()
+
+
+def _generate(prompt: str, *, attempts: int = 3) -> str | None:
+    """Generate text, pacing for the free tier and rotating models when needed.
+
+    A per-minute 429 is worth sleeping through. A per-*day* quota or a retired
+    model is not — those rotate to the next candidate immediately, so a demo
+    keeps working on a different model rather than stalling for a minute and
+    then failing anyway.
+    """
+    for attempt in range(attempts):
+        model = _get_gemini_model()
+        if model is None:
+            return None
+
+        _throttle()
+        try:
+            response = model.generate_content(prompt)
+            if response and response.text:
+                return response.text.strip()
+            return None
+        except Exception as exc:
+            if _is_missing_model(exc) or _is_daily_quota(exc):
+                reason = "model retired" if _is_missing_model(exc) else "daily quota spent"
+                if _rotate_model(reason):
+                    continue
+                raise
+
+            delay = _retry_delay_seconds(exc)
+            if delay is None or attempt == attempts - 1:
+                raise
+            logger.warning(
+                "Gemini rate-limited; waiting %.0fs before retry %d/%d.",
+                delay,
+                attempt + 2,
+                attempts,
+            )
+            time.sleep(delay)
+    return None
+
+
+def _candidate_models() -> list[str]:
+    ordered = [settings.GEMINI_MODEL] if settings.GEMINI_MODEL else []
+    for name in FALLBACK_MODELS:
+        if name not in ordered:
+            ordered.append(name)
+    return ordered
+
+
+# Index into _candidate_models() of the model we are currently using. It only
+# ever moves forward, when a model turns out to be retired or out of quota.
+_model_index = 0
+_model_cache: dict[str, object] = {}
+
+
+def _build_model(name: str):
+    import google.generativeai as genai
+
+    genai.configure(api_key=settings.GEMINI_API_KEY)
+    return genai.GenerativeModel(model_name=name, system_instruction=SYSTEM_INSTRUCTION)
+
+
+def _get_gemini_model():
+    """Return the current Gemini model, or None when no key is configured.
+
+    Deliberately does *no* network call. An earlier version verified each
+    candidate with a tiny probe generation, which was a nice idea until the free
+    tier turned out to allow only twenty requests per day per model — the probe
+    was spending the quota the visitor's questions needed. Models are now
+    validated lazily, by actually being used.
+    """
+    if not settings.GEMINI_API_KEY:
+        return None
+
+    candidates = _candidate_models()
+    if _model_index >= len(candidates):
+        return None
+
+    name = candidates[_model_index]
+    if name not in _model_cache:
+        try:
+            _model_cache[name] = _build_model(name)
+            logger.info("Gemini ready on model '%s'.", name)
+        except Exception as exc:
+            logger.error("Could not construct Gemini model '%s': %s", name, exc)
+            return None
+    return _model_cache[name]
+
+
+def _rotate_model(reason: str) -> bool:
+    """Move to the next candidate model. Returns False when none are left."""
+    global _model_index
+    candidates = _candidate_models()
+    _model_index += 1
+    if _model_index >= len(candidates):
+        logger.error("No Gemini models left to try (%s).", reason)
+        return False
+    logger.warning(
+        "Switching Gemini model to '%s' (%s).", candidates[_model_index], reason
+    )
+    return True
+
+    logger.error("No usable Gemini model found — falling back to authored narration.")
+    return None
 
 
 # ---------------------------------------------------------------------------
@@ -153,9 +300,9 @@ def generate_narration(
     )
 
     try:
-        response = model.generate_content(prompt)
-        if response and response.text:
-            return response.text.strip()
+        text = _generate(prompt)
+        if text:
+            return text
     except Exception as exc:
         logger.error("Gemini narration call failed: %s", exc)
 
@@ -163,6 +310,25 @@ def generate_narration(
     return PRECACHED_NARRATIONS.get(
         context_title,
         f"You are viewing {context_title}. {facts_text[:250]}",
+    )
+
+
+def _grounded_fallback(context_title: str, facts_text: str) -> str:
+    """What the guide says when Gemini is unavailable.
+
+    Deliberately plain. The temptation is to pad with "what a wonderful
+    question!" and a sentence about craftsmanship and cultural significance,
+    which says nothing and sounds like filler — so this hands over the verified
+    facts instead, and says plainly where they came from. Two sentences of real
+    information beat four of enthusiasm.
+    """
+    sentences = [s.strip() for s in facts_text.split(". ") if s.strip()]
+    answer = ". ".join(sentences[:2]).rstrip(".")
+    subject = context_title.split("—")[-1].strip() or context_title
+    return (
+        f"From the notes on {subject}: {answer}. "
+        f"My connection to the wider archive is down, so that is from the "
+        f"verified record rather than from me."
     )
 
 
@@ -177,12 +343,7 @@ def answer_question(
 
     # ---------- Fallback path ----------
     if model is None:
-        return (
-            f"That's a great question about {context_title}! "
-            f"Based on our records: {facts_text[:300]}. "
-            f"The historical evidence highlights the profound craftsmanship and "
-            f"cultural significance of this piece."
-        )
+        return _grounded_fallback(context_title, facts_text)
 
     # ---------- Live Gemini path ----------
     prompt = (
@@ -197,13 +358,51 @@ def answer_question(
     )
 
     try:
-        response = model.generate_content(prompt)
-        if response and response.text:
-            return response.text.strip()
+        text = _generate(prompt)
+        if text:
+            return text
     except Exception as exc:
         logger.error("Gemini Q&A call failed: %s", exc)
 
-    return (
-        f"I'd love to tell you more about '{context_title}'. "
-        f"Here's what we know: {facts_text[:250]}…"
+    return _grounded_fallback(context_title, facts_text)
+
+
+# ---------------------------------------------------------------------------
+# Tour-script polish (used by experience_service)
+#
+# The monument tour ships with hand-written narration that is already good
+# enough to demo. When a Gemini key is present we let the model tighten each
+# line into spoken-docent voice; the result is cached permanently upstream in
+# ``experience_service``, so this runs at most once per line per machine.
+# ---------------------------------------------------------------------------
+def polish_narration(title: str, authored: str, facts: str) -> str | None:
+    """Rewrite *authored* in docent voice, or return None to keep the original."""
+    model = _get_gemini_model()
+    if model is None:
+        return None
+
+    prompt = (
+        f"You are narrating a live walking tour and have arrived at '{title}'.\n\n"
+        f"Below is the script a human guide wrote for this moment. Rewrite it so it "
+        f"sounds natural spoken aloud: same facts, same order, same length "
+        f"(within ten words), warm and direct, second person. Do not add facts that "
+        f"are not in the script or the grounding notes. Do not add a greeting, a "
+        f"sign-off, markdown, or stage directions. Return only the spoken words.\n\n"
+        f"SCRIPT:\n{authored}\n\n"
+        f"GROUNDING NOTES (for accuracy only, do not recite):\n{facts}\n"
     )
+
+    try:
+        text = _generate(prompt)
+        if text:
+            cleaned = text.strip('"')
+            # Guard against the model ignoring the length instruction and
+            # desynchronising the narration from the tour's pacing.
+            if 0.5 <= len(cleaned.split()) / max(1, len(authored.split())) <= 1.8:
+                return cleaned
+            logger.warning("Discarding off-length polish for '%s'.", title)
+    except Exception as exc:
+        logger.error("Gemini polish call failed for '%s': %s", title, exc)
+
+    return None
+

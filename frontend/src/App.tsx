@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { LandingPage } from './components/LandingPage';
 import { MonumentsPage, type MonumentData } from './components/MonumentsPage';
-import { MonumentExperiencePage } from './components/MonumentExperiencePage';
+import { MonumentExperience } from './components/Monument/MonumentExperience';
 import { PaintingsPage } from './components/PaintingsPage';
 
 type View = 'landing' | 'monuments' | 'experience' | 'paintings';
@@ -21,9 +21,7 @@ export function App() {
 
   return (
     <>
-      {view === 'landing' && (
-        <LandingPage onSelect={handleLandingSelect} />
-      )}
+      {view === 'landing' && <LandingPage onSelect={handleLandingSelect} />}
 
       {view === 'monuments' && (
         <MonumentsPage
@@ -33,15 +31,13 @@ export function App() {
       )}
 
       {view === 'experience' && selectedMonument && (
-        <MonumentExperiencePage
-          monument={selectedMonument}
+        <MonumentExperience
+          monumentId={selectedMonument.id}
           onBack={() => setView('monuments')}
         />
       )}
 
-      {view === 'paintings' && (
-        <PaintingsPage onBack={() => setView('landing')} />
-      )}
+      {view === 'paintings' && <PaintingsPage onBack={() => setView('landing')} />}
     </>
   );
 }

@@ -1,121 +1,51 @@
 from sqlalchemy.orm import Session
+
 from app.models import Monument, POI, Painting
+from app.tour_data import FREE_ROAM_POIS, STATUE_CENTER, TOUR_WAYPOINTS
+
+MONUMENT_NAME = "Statue of Liberty"
+
+MONUMENT_DESCRIPTION = (
+    "A colossal neoclassical sculpture on Liberty Island in New York Harbour. "
+    "Designed by French sculptor Frederic Auguste Bartholdi with an internal iron "
+    "framework by Gustave Eiffel, it was dedicated on 28 October 1886 as a gift "
+    "from the people of France to the United States. Its formal name is "
+    "'Liberty Enlightening the World'."
+)
 
 
-def seed_data(db: Session) -> None:
-    """Seed the database with the Statue of Liberty POIs and gallery paintings.
+def _build_pois(monument_id: int) -> list[POI]:
+    """Derive the database POIs from the authored, coverage-verified tour data.
 
-    This function is idempotent — it only inserts data when the tables are empty.
+    Keeping one source of truth means the facts behind ``/narrate/{poi_id}`` and
+    the facts behind a free-roam hotspot card can never drift apart. Each POI
+    borrows the heading of the nearest tour stop so the legacy Street View
+    endpoints still return a usable point of view.
     """
-    if db.query(Monument).first():
-        return
+    front = TOUR_WAYPOINTS[0]
+    pois: list[POI] = []
+    for index, hotspot in enumerate(FREE_ROAM_POIS, start=1):
+        pois.append(
+            POI(
+                monument_id=monument_id,
+                name=hotspot["name"],
+                facts_text=hotspot["facts"],
+                pano_lat=front["lat"],
+                pano_lng=front["lng"],
+                pano_heading=front["heading"],
+                # Look up at whatever this feature's height demands.
+                pano_pitch=round(min(60.0, hotspot["height_m"] * 0.5), 1),
+                order_index=index,
+            )
+        )
+    return pois
 
-    # ------------------------------------------------------------------
-    # 1. Monument — Statue of Liberty, Liberty Island, New York
-    #    Google Street View verified entry point: 40.6892, -74.0445
-    # ------------------------------------------------------------------
-    statue = Monument(
-        name="Statue of Liberty",
-        description=(
-            "A colossal neoclassical sculpture on Liberty Island in New York Harbor. "
-            "Designed by French sculptor Frédéric Auguste Bartholdi and built by "
-            "Gustave Eiffel, it was dedicated on October 28, 1886. The statue is a "
-            "symbol of freedom and democracy, gifted by France to the United States."
-        ),
-        street_view_lat=40.6892,
-        street_view_lng=-74.0445,
-    )
-    db.add(statue)
-    db.flush()  # populate statue.id
 
-    # ------------------------------------------------------------------
-    # POIs — 4 points of interest around the Statue of Liberty
-    # Coordinates are verified Street View panorama locations on Liberty Island.
-    # ------------------------------------------------------------------
-    pois = [
-        POI(
-            monument_id=statue.id,
-            name="The Pedestal & Fort Wood",
-            facts_text=(
-                "The Statue of Liberty stands atop a concrete-and-granite pedestal "
-                "that itself rests on the star-shaped walls of the former Fort Wood, "
-                "a military fortification completed in 1811. The pedestal, designed by "
-                "architect Richard Morris Hunt, is 89 feet (27 m) tall. Funding for "
-                "the pedestal was raised through a grassroots campaign championed by "
-                "newspaper publisher Joseph Pulitzer, who published the names of every "
-                "donor — no matter how small the contribution — in his paper 'The World'. "
-                "Over 120,000 people contributed, most giving less than a dollar."
-            ),
-            pano_lat=40.6891,
-            pano_lng=-74.0446,
-            pano_heading=0.0,
-            pano_pitch=15.0,
-            order_index=1,
-        ),
-        POI(
-            monument_id=statue.id,
-            name="The Copper Exterior & Crown",
-            facts_text=(
-                "The statue's exterior skin consists of approximately 300 shaped copper "
-                "sheets (called 'saddles'), each only 3/32 of an inch (2.4 mm) thick — "
-                "roughly the thickness of two U.S. pennies. Originally reddish-brown, "
-                "the copper oxidised over about 20 years to develop its signature green "
-                "patina (verdigris), which actually acts as a protective layer against "
-                "further corrosion. The crown features 25 windows and 7 rays representing "
-                "the seven continents and oceans of the world. Visitors can climb 354 "
-                "steps from the pedestal to the crown."
-            ),
-            pano_lat=40.6893,
-            pano_lng=-74.0444,
-            pano_heading=45.0,
-            pano_pitch=30.0,
-            order_index=2,
-        ),
-        POI(
-            monument_id=statue.id,
-            name="The Torch & Flame",
-            facts_text=(
-                "The torch is the statue's most iconic element, symbolising enlightenment "
-                "lighting the path to freedom. The original 1886 torch was replaced during "
-                "the 1984-1986 centennial restoration. The current flame is covered in "
-                "24-karat gold leaf and is lit by external lamps reflected off the gold "
-                "surface. The original copper-and-glass torch is now on display in the "
-                "pedestal's lobby museum. At its highest point the torch reaches 305 feet "
-                "(93 m) above ground level."
-            ),
-            pano_lat=40.6894,
-            pano_lng=-74.0445,
-            pano_heading=350.0,
-            pano_pitch=45.0,
-            order_index=3,
-        ),
-        POI(
-            monument_id=statue.id,
-            name="The Tablet & Broken Chains",
-            facts_text=(
-                "In her left hand the statue holds a tabula ansata — a tablet evoking the "
-                "concept of law — inscribed with 'JULY IV MDCCLXXVI' (July 4, 1776), the "
-                "date of the American Declaration of Independence. At her feet lie broken "
-                "chains and shackles, symbolising the abolition of slavery and freedom from "
-                "oppression. Sculptor Bartholdi and political activist Édouard de Laboulaye "
-                "conceived the statue partly as a celebration of the end of the American "
-                "Civil War and the abolition of slavery (13th Amendment, 1865). The statue's "
-                "full formal name is 'Liberty Enlightening the World' (La Liberté éclairant "
-                "le monde)."
-            ),
-            pano_lat=40.6890,
-            pano_lng=-74.0447,
-            pano_heading=180.0,
-            pano_pitch=5.0,
-            order_index=4,
-        ),
-    ]
-    for poi in pois:
-        db.add(poi)
+def _seed_paintings(db: Session) -> int:
+    """Insert the gallery only when it is empty — existing rows are left alone."""
+    if db.query(Painting).first():
+        return 0
 
-    # ------------------------------------------------------------------
-    # 2. Paintings — 4 public-domain masterpieces (Wikimedia Commons)
-    # ------------------------------------------------------------------
     paintings = [
         Painting(
             title="The Starry Night",
@@ -123,7 +53,7 @@ def seed_data(db: Session) -> None:
             year="1889",
             facts_text=(
                 "Painted in June 1889 from the Saint-Paul-de-Mausole asylum in "
-                "Saint-Rémy-de-Provence shortly after Van Gogh severed part of his ear. "
+                "Saint-Remy-de-Provence shortly after Van Gogh severed part of his ear. "
                 "It depicts his idealised night view before sunrise, dominated by swirling "
                 "sky vortices, eleven radiant stars, and a luminous crescent moon. The "
                 "towering dark cypress tree in the foreground connects heaven and earth, "
@@ -136,14 +66,14 @@ def seed_data(db: Session) -> None:
         Painting(
             title="Mona Lisa (La Gioconda)",
             artist="Leonardo da Vinci",
-            year="1503–1519",
+            year="1503-1519",
             facts_text=(
                 "Believed to be a portrait of Lisa Gherardini, wife of Florentine silk "
                 "merchant Francesco del Giocondo. Painted in oil on a white Lombardy poplar "
                 "panel, it is world-renowned for Leonardo's masterly application of sfumato "
                 "(the subtle blurring of edges without sharp outlines). Her ambiguous smile "
                 "appears to shift depending on where the viewer focuses. It has been on "
-                "permanent display at the Musée du Louvre in Paris since 1797 and is viewed "
+                "permanent display at the Musee du Louvre in Paris since 1797 and is viewed "
                 "by approximately 6 million visitors per year."
             ),
             image_path="https://upload.wikimedia.org/wikipedia/commons/thumb/e/ec/Mona_Lisa%2C_by_Leonardo_da_Vinci%2C_from_C2RMF_retouched.jpg/800px-Mona_Lisa%2C_by_Leonardo_da_Vinci%2C_from_C2RMF_retouched.jpg",
@@ -169,7 +99,7 @@ def seed_data(db: Session) -> None:
             year="c. 1665",
             facts_text=(
                 "Known as the 'Mona Lisa of the North', this Dutch Golden Age masterpiece "
-                "is a 'tronie' — a study of an idealised or exotic character — rather than "
+                "is a 'tronie' - a study of an idealised or exotic character - rather than "
                 "a formal commissioned portrait. The young woman wears an oriental blue and "
                 "yellow turban and a captivatingly large tear-drop pearl earring. Vermeer "
                 "achieved luminous realism with just two quick strokes of lead white paint "
@@ -179,8 +109,62 @@ def seed_data(db: Session) -> None:
             image_path="https://upload.wikimedia.org/wikipedia/commons/thumb/0/0f/1665_Girl_with_a_Pearl_Earring.jpg/800px-1665_Girl_with_a_Pearl_Earring.jpg",
         ),
     ]
-    for p in paintings:
-        db.add(p)
+    for painting in paintings:
+        db.add(painting)
+    return len(paintings)
+
+
+def seed_data(db: Session) -> None:
+    """Make the database match this build's configured monument.
+
+    This is deliberately self-healing rather than merely idempotent. A plain
+    "skip if any row exists" guard leaves an earlier build's monument in place
+    forever, which is exactly how a database seeded for a different monument
+    survives a rewrite of this file. Monument and POI rows are pure seed data —
+    nothing user-generated lives in them — so replacing a mismatched monument is
+    safe. The gallery is only ever inserted when empty, never replaced.
+    """
+    monument = db.query(Monument).filter(Monument.name == MONUMENT_NAME).first()
+    stale = db.query(Monument).filter(Monument.name != MONUMENT_NAME).all()
+
+    for other in stale:
+        # Cascades to that monument's POIs via the relationship's delete-orphan.
+        print(f"[seed] Removing monument seeded by an earlier build: {other.name}")
+        db.delete(other)
+    if stale:
+        db.flush()
+
+    if monument is None:
+        monument = Monument(
+            name=MONUMENT_NAME,
+            description=MONUMENT_DESCRIPTION,
+            street_view_lat=STATUE_CENTER["lat"],
+            street_view_lng=STATUE_CENTER["lng"],
+        )
+        db.add(monument)
+        db.flush()
+        print(f"[seed] Inserted monument: {MONUMENT_NAME}")
+    else:
+        monument.description = MONUMENT_DESCRIPTION
+        monument.street_view_lat = STATUE_CENTER["lat"]
+        monument.street_view_lng = STATUE_CENTER["lng"]
+
+    # Re-derive POIs whenever the authored set has changed shape.
+    expected_names = [hotspot["name"] for hotspot in FREE_ROAM_POIS]
+    current_names = [poi.name for poi in sorted(monument.pois, key=lambda p: p.order_index)]
+    if current_names != expected_names:
+        for poi in list(monument.pois):
+            db.delete(poi)
+        db.flush()
+        for poi in _build_pois(monument.id):
+            db.add(poi)
+        print(f"[seed] Rebuilt {len(expected_names)} POIs for {MONUMENT_NAME}")
+
+    added_paintings = _seed_paintings(db)
 
     db.commit()
-    print("[OK] Database seeded: 1 monument, 4 POIs, 4 paintings.")
+    print(
+        f"[OK] Database ready: {MONUMENT_NAME}, {len(expected_names)} POIs, "
+        f"{db.query(Painting).count()} paintings"
+        + (f" ({added_paintings} inserted)" if added_paintings else "")
+    )

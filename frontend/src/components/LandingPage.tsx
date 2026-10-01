@@ -1,159 +1,111 @@
 import React from 'react';
+import { ArrowRight, Landmark, Palette } from 'lucide-react';
 
 interface Props {
   onSelect: (view: 'monuments' | 'paintings') => void;
 }
 
+const ROUTES = [
+  {
+    id: 'monuments' as const,
+    index: '01',
+    Icon: Landmark,
+    title: 'Monuments',
+    line: 'Liberty Island, New York Harbour',
+    blurb:
+      'Orbit the statue from above, then walk the island with a guide who knows what to point at.',
+  },
+  {
+    id: 'paintings' as const,
+    index: '02',
+    Icon: Palette,
+    title: 'Paintings',
+    line: 'Four works, examined closely',
+    blurb:
+      'Van Gogh, Leonardo, Hokusai and Vermeer, turned to the light and talked through.',
+  },
+];
+
 export const LandingPage: React.FC<Props> = ({ onSelect }) => {
   return (
     <div
       id="landing-page"
-      className="relative w-full min-h-screen flex flex-col items-center justify-center overflow-hidden"
+      className="relative w-full min-h-screen flex flex-col overflow-hidden bg-[#080a0f]"
     >
-      {/* Background image with dark overlay */}
       <div
-        className="absolute inset-0 bg-cover bg-center bg-no-repeat"
-        style={{ backgroundImage: "url('/hero_bg.jpg')" }}
+        className="absolute inset-0 bg-cover bg-center"
+        style={{ backgroundImage: "url('/hero_bg.jpg')", opacity: 0.38 }}
       />
-      {/* Deep gradient overlay */}
-      <div className="absolute inset-0 bg-gradient-to-b from-black/70 via-black/50 to-black/80" />
-      {/* Subtle vignette */}
-      <div
-        className="absolute inset-0 pointer-events-none"
-        style={{
-          background:
-            'radial-gradient(ellipse at center, transparent 40%, rgba(0,0,0,0.75) 100%)',
-        }}
-      />
+      <div className="absolute inset-0 bg-gradient-to-b from-[#080a0f]/70 via-[#080a0f]/85 to-[#080a0f]" />
 
-      {/* Content */}
-      <div className="relative z-10 flex flex-col items-center gap-12 px-6 text-center">
-        {/* Eyebrow */}
-        <p
-          className="animate-fade-up text-xs font-medium tracking-[0.35em] uppercase text-amber-400/80"
-          style={{ letterSpacing: '0.35em' }}
-        >
-          An Immersive Heritage Experience
-        </p>
-
-        {/* Title */}
-        <div className="animate-fade-up-delay-1 flex flex-col items-center gap-3">
+      <main className="relative z-10 flex-1 w-full max-w-5xl mx-auto px-7 flex flex-col justify-center gap-16 py-20">
+        <header className="animate-fade-up flex flex-col gap-5 max-w-2xl">
+          <span className="text-[10px] font-medium tracking-[0.32em] uppercase text-amber-400/70">
+            ACM × MLH Hack Days 2026
+          </span>
           <h1
-            className="font-display text-gold-shimmer"
+            className="font-display text-stone-100"
             style={{
-              fontSize: 'clamp(3rem, 10vw, 7.5rem)',
-              lineHeight: 1.05,
+              fontSize: 'clamp(2.8rem, 9vw, 5.5rem)',
+              lineHeight: 0.98,
               fontWeight: 300,
-              letterSpacing: '-0.01em',
+              letterSpacing: '-0.02em',
             }}
           >
-            Echoes of Eternity
+            Echoes of&nbsp;Eternity
           </h1>
-          <div className="w-24 h-px bg-gradient-to-r from-transparent via-amber-400/60 to-transparent" />
-          <p className="text-sm text-stone-400 font-light tracking-wide max-w-md">
-            Journey through the world's greatest monuments and masterpiece paintings
+          <p className="text-sm text-stone-400 font-light leading-relaxed max-w-md">
+            Heritage is usually handed to you as a photograph and a plaque. Here you walk through
+            it, on real imagery, with a guide that answers questions.
           </p>
-        </div>
+        </header>
 
-        {/* Two big buttons */}
-        <div className="animate-fade-up-delay-2 flex flex-col sm:flex-row items-center gap-5 w-full max-w-2xl mt-2">
-          {/* Monuments Button */}
-          <button
-            id="btn-monuments"
-            onClick={() => onSelect('monuments')}
-            className="hero-btn group relative flex-1 w-full sm:w-auto flex flex-col items-center justify-center gap-4 rounded-2xl py-10 px-8 cursor-pointer"
-            style={{
-              background:
-                'linear-gradient(135deg, rgba(30,20,10,0.85) 0%, rgba(50,35,15,0.85) 100%)',
-              border: '1px solid rgba(212,175,55,0.3)',
-              boxShadow: '0 8px 40px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.05)',
-            }}
-          >
-            {/* Icon */}
-            <span
-              className="animate-float"
-              style={{ fontSize: '3rem', lineHeight: 1, filter: 'drop-shadow(0 4px 16px rgba(212,175,55,0.4))' }}
+        <nav className="animate-fade-up-delay-1 flex flex-col">
+          {ROUTES.map(({ id, index, Icon, title, line, blurb }) => (
+            <button
+              key={id}
+              id={`btn-${id}`}
+              onClick={() => onSelect(id)}
+              className="route-row group flex items-start gap-5 sm:gap-8 py-7 text-left border-t border-white/[0.07] last:border-b"
             >
-              🏛️
-            </span>
-
-            <div className="flex flex-col items-center gap-1.5">
-              <span
-                className="font-display text-amber-200 group-hover:text-amber-100 transition-colors"
-                style={{ fontSize: '1.75rem', fontWeight: 400, lineHeight: 1.1 }}
-              >
-                Monuments
+              <span className="text-[10px] font-mono text-stone-700 pt-2 w-6 shrink-0">
+                {index}
               </span>
-              <span className="text-xs text-stone-500 tracking-wide font-light">
-                3D immersive street view
+
+              <Icon
+                className="w-5 h-5 text-amber-400/50 shrink-0 mt-1.5 transition-colors group-hover:text-amber-300"
+                strokeWidth={1.25}
+                aria-hidden="true"
+              />
+
+              <span className="flex-1 flex flex-col gap-1.5 min-w-0">
+                <span
+                  className="font-display text-stone-100 group-hover:text-amber-100 transition-colors"
+                  style={{ fontSize: '1.75rem', fontWeight: 400, lineHeight: 1.1 }}
+                >
+                  {title}
+                </span>
+                <span className="text-[11px] text-amber-600/60 tracking-wide">{line}</span>
+                <span className="text-[13px] text-stone-500 font-light leading-relaxed max-w-md mt-1">
+                  {blurb}
+                </span>
               </span>
-            </div>
 
-            {/* Glow line at bottom */}
-            <div
-              className="absolute bottom-0 left-1/2 -translate-x-1/2 w-0 group-hover:w-3/4 h-px bg-amber-400/60 transition-all duration-500 ease-out rounded-full"
-            />
-          </button>
+              <ArrowRight
+                className="w-4 h-4 text-stone-700 shrink-0 mt-2 transition-all group-hover:text-amber-300 group-hover:translate-x-1"
+                strokeWidth={1.5}
+                aria-hidden="true"
+              />
+            </button>
+          ))}
+        </nav>
+      </main>
 
-          {/* Divider */}
-          <div className="hidden sm:flex flex-col items-center gap-2">
-            <div className="w-px h-12 bg-gradient-to-b from-transparent via-stone-600 to-transparent" />
-            <span className="text-xs text-stone-600 font-light">or</span>
-            <div className="w-px h-12 bg-gradient-to-b from-transparent via-stone-600 to-transparent" />
-          </div>
-
-          {/* Paintings Button */}
-          <button
-            id="btn-paintings"
-            onClick={() => onSelect('paintings')}
-            className="hero-btn group relative flex-1 w-full sm:w-auto flex flex-col items-center justify-center gap-4 rounded-2xl py-10 px-8 cursor-pointer"
-            style={{
-              background:
-                'linear-gradient(135deg, rgba(10,15,30,0.85) 0%, rgba(20,25,50,0.85) 100%)',
-              border: '1px solid rgba(120,100,200,0.3)',
-              boxShadow: '0 8px 40px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.05)',
-            }}
-          >
-            {/* Icon */}
-            <span
-              className="animate-float"
-              style={{
-                fontSize: '3rem',
-                lineHeight: 1,
-                filter: 'drop-shadow(0 4px 16px rgba(140,110,220,0.45))',
-                animationDelay: '0.7s',
-              }}
-            >
-              🎨
-            </span>
-
-            <div className="flex flex-col items-center gap-1.5">
-              <span
-                className="font-display text-violet-200 group-hover:text-violet-100 transition-colors"
-                style={{ fontSize: '1.75rem', fontWeight: 400, lineHeight: 1.1 }}
-              >
-                Paintings
-              </span>
-              <span className="text-xs text-stone-500 tracking-wide font-light">
-                Curated masterpiece gallery
-              </span>
-            </div>
-
-            {/* Glow line at bottom */}
-            <div
-              className="absolute bottom-0 left-1/2 -translate-x-1/2 w-0 group-hover:w-3/4 h-px bg-violet-400/60 transition-all duration-500 ease-out rounded-full"
-            />
-          </button>
-        </div>
-
-        {/* Subtle footnote */}
-        <p className="animate-fade-up-delay-3 text-[11px] text-stone-600 tracking-widest uppercase">
-          Powered by Google Maps · Gemini AI
+      <footer className="relative z-10 px-7 pb-8">
+        <p className="text-[10px] text-stone-700 tracking-[0.22em] uppercase">
+          Google Maps Platform · Gemini
         </p>
-      </div>
-
-      {/* Bottom gradient fade */}
-      <div className="absolute bottom-0 left-0 right-0 h-24 bg-gradient-to-t from-[#080a0f] to-transparent pointer-events-none" />
+      </footer>
     </div>
   );
 };
