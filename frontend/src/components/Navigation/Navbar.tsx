@@ -20,14 +20,14 @@ export const Navbar: React.FC<Props> = ({ activeTab, onTabChange }) => {
           <div>
             <div className="flex items-center gap-2">
               <h1 className="text-base sm:text-lg font-black tracking-tight text-white m-0">
-                AURA
+                Echoes of Eternity
               </h1>
               <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-purple-950 text-purple-300 border border-purple-800/50">
                 ACM x MLH Hack Days '26
               </span>
             </div>
             <p className="text-[11px] text-slate-400 m-0">
-              Immersive AI Heritage & Fine Art Experience
+              Immersive AI Heritage & Art Experience
             </p>
           </div>
         </div>

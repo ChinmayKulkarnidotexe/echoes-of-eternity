@@ -1,106 +1,184 @@
 import logging
+from functools import lru_cache
 from app.config import settings
 
 logger = logging.getLogger(__name__)
 
-# Fallback pre-cached narrations and responses in case of missing API key or network limits (PRD Section 12)
-PRECACHED_NARRATIONS = {
-    "Taj Mahal - Main Gateway (Darwaza-i-Rauza)": (
-        "Welcome to the Great Gate, or Darwaza-i-Rauza. Before you stands the majestic gateway of the Taj Mahal. "
-        "Notice the precision of the Arabic calligraphy framing the archway, inviting you into Paradise on Earth."
+# ---------------------------------------------------------------------------
+# System prompt that grounds every Gemini interaction in the project persona
+# ---------------------------------------------------------------------------
+SYSTEM_INSTRUCTION = (
+    "You are the AI tour guide for 'Echoes of Eternity', an immersive virtual heritage "
+    "and fine-art experience. You speak with the warmth and knowledge of a seasoned museum "
+    "docent. Address the visitor directly using second-person ('you', 'notice', 'before you'). "
+    "Always ground your answers strictly in the FACTS provided. If the facts are insufficient, "
+    "supplement with general art-history knowledge but clearly indicate when you do so. "
+    "Keep all responses concise (2-4 sentences) since they will be read aloud via text-to-speech."
+)
+
+# ---------------------------------------------------------------------------
+# Pre-cached fallback narrations (PRD §12 Risk Mitigation)
+# Used when GEMINI_API_KEY is absent or the API is unreachable.
+# ---------------------------------------------------------------------------
+PRECACHED_NARRATIONS: dict[str, str] = {
+    # Statue of Liberty POIs
+    "Statue of Liberty - The Pedestal & Fort Wood": (
+        "Welcome to the base of Lady Liberty! You are standing on Fort Wood, "
+        "a former military fortification whose star-shaped walls now serve as the "
+        "pedestal's foundation. The granite pedestal itself rises 89 feet and was "
+        "funded by everyday Americans through a campaign led by Joseph Pulitzer."
     ),
-    "Taj Mahal - The Reflecting Pool (Charbagh)": (
-        "Here at the Charbagh reflecting pool, the Mughal symmetry comes alive. "
-        "The four quadrants symbolize the four rivers of paradise described in Islamic tradition, perfectly mirroring the white marble dome."
+    "Statue of Liberty - The Copper Exterior & Crown": (
+        "Look up and notice the statue's distinctive green patina. The exterior "
+        "is made of roughly 300 copper sheets, each just 2.4 millimeters thick — "
+        "about the width of two pennies stacked together. Over time, oxidation "
+        "transformed the original reddish-brown copper into this iconic verdigris."
     ),
-    "Taj Mahal - The Central Dome & Mausoleum": (
-        "Standing directly before the central marble dome, you can appreciate the delicate pietra dura inlay work. "
-        "Thousands of semi-precious stones form blooming vines, crafted by master artisans over 22 years."
+    "Statue of Liberty - The Torch & Flame": (
+        "Before you is the torch, the most recognizable symbol of enlightenment. "
+        "The current flame is covered in 24-karat gold leaf and was installed in "
+        "1986 during the centennial restoration. The original 1886 torch is now on "
+        "display in the lobby of the pedestal."
     ),
+    "Statue of Liberty - The Tablet & Broken Chains": (
+        "Notice the tabula ansata in Liberty's left hand inscribed with 'JULY IV MDCCLXXVI' — "
+        "July 4, 1776, the date of American independence. At her feet lie broken chains "
+        "and shackles, a powerful symbol of freedom from oppression that sculptor "
+        "Frédéric Auguste Bartholdi intentionally placed there."
+    ),
+    # Paintings
     "The Starry Night": (
-        "Vincent van Gogh painted 'The Starry Night' in June 1889 from his asylum room in Saint-Rémy-de-Provence. "
-        "The swirling sky and vibrant ultramarine blues reflect his intense emotional vision and spiritual wonder."
+        "Vincent van Gogh painted 'The Starry Night' in June 1889 from his asylum "
+        "room in Saint-Rémy-de-Provence. The swirling sky and vibrant blues reflect "
+        "his intense emotional vision and spiritual wonder."
     ),
-    "Mona Lisa": (
-        "Painted by Leonardo da Vinci between 1503 and 1519, the Mona Lisa is celebrated for her enigmatic expression "
-        "and Leonardo's pioneering sfumato technique, seamlessly blending light and shadow."
+    "Mona Lisa (La Gioconda)": (
+        "Painted by Leonardo da Vinci between 1503 and 1519, the Mona Lisa is "
+        "celebrated for her enigmatic expression and Leonardo's pioneering sfumato "
+        "technique, seamlessly blending light and shadow."
     ),
     "The Great Wave off Kanagawa": (
-        "Hokusai's iconic woodblock print from circa 1831 depicts towering rogue waves framing Mount Fuji. "
-        "The bold use of imported Prussian blue pigment transformed Japanese art and captivated the Western impressionists."
-    )
+        "Hokusai's iconic woodblock print from circa 1831 depicts towering rogue "
+        "waves framing Mount Fuji. The bold use of imported Prussian blue pigment "
+        "transformed Japanese art and captivated Western impressionists."
+    ),
+    "Girl with a Pearl Earring": (
+        "Known as the 'Mona Lisa of the North', Vermeer's masterpiece is a Dutch "
+        "Golden Age 'tronie' — a character study rather than a portrait. The luminous "
+        "pearl earring was rendered with just two strokes of lead white."
+    ),
 }
 
+
+# ---------------------------------------------------------------------------
+# Gemini client singleton
+# ---------------------------------------------------------------------------
+@lru_cache(maxsize=1)
 def _get_gemini_model():
+    """Return a configured Gemini GenerativeModel or None if the key is missing."""
     if not settings.GEMINI_API_KEY:
-        logger.warning("GEMINI_API_KEY not configured. Operating in fallback mock mode.")
+        logger.warning("GEMINI_API_KEY not set — running in pre-cached fallback mode.")
         return None
     try:
         import google.generativeai as genai
+
         genai.configure(api_key=settings.GEMINI_API_KEY)
-        model = genai.GenerativeModel(settings.GEMINI_MODEL)
+        model = genai.GenerativeModel(
+            model_name=settings.GEMINI_MODEL,
+            system_instruction=SYSTEM_INSTRUCTION,
+        )
         return model
-    except Exception as e:
-        logger.error(f"Error initializing Gemini: {e}")
+    except Exception as exc:
+        logger.error("Failed to initialise Gemini model: %s", exc)
         return None
 
-def generate_narration(context_title: str, facts_text: str, context_type: str = "monument") -> str:
-    """Generate an engaging, natural tour-guide narration grounded strictly in facts_text."""
+
+# ---------------------------------------------------------------------------
+# Public API
+# ---------------------------------------------------------------------------
+def generate_narration(
+    context_title: str,
+    facts_text: str,
+    context_type: str = "monument",
+) -> str:
+    """Create an engaging 2-3 sentence narration grounded in *facts_text*."""
     model = _get_gemini_model()
-    if not model:
-        if context_title in PRECACHED_NARRATIONS:
-            return PRECACHED_NARRATIONS[context_title]
+
+    # ---------- Fallback path ----------
+    if model is None:
+        cached = PRECACHED_NARRATIONS.get(context_title)
+        if cached:
+            return cached
+        # Generic fallback built from facts
+        first_sentence = facts_text.split(".")[0].strip()
         return (
-            f"Welcome to {context_title}. This remarkable {context_type} is renowned for its historical and artistic value. "
-            f"Key highlight: {facts_text.split('.')[0]}."
+            f"Welcome to {context_title}. "
+            f"This remarkable {context_type} is renowned for its historical and artistic significance. "
+            f"{first_sentence}."
         )
 
-    prompt = f"""You are an enthusiastic, expert, and warm audio-tour guide for a virtual museum and heritage experience.
-Generate a captivating 2-3 sentence narration for a visitor who has just stopped at '{context_title}' ({context_type}).
-Speak directly to the listener (use second person 'you', 'notice', 'before you').
-Ground your narration STRICTLY on the verified facts below. Do not make up facts.
-
-FACTS:
-{facts_text}
-
-Provide only the narration text to be spoken aloud. Keep it concise, engaging, and atmospheric."""
-
-    try:
-        response = model.generate_content(prompt)
-        if response and response.text:
-            return response.text.strip()
-    except Exception as e:
-        logger.error(f"Gemini narration generation failed: {e}")
-    
-    return PRECACHED_NARRATIONS.get(
-        context_title,
-        f"You are viewing {context_title}. Notice the intricate craftsmanship and historical significance: {facts_text}"
+    # ---------- Live Gemini path ----------
+    prompt = (
+        f"Generate a captivating 2-3 sentence narration for a visitor who has just "
+        f"arrived at '{context_title}' (a {context_type}). "
+        f"Ground your narration STRICTLY on the following verified facts.\n\n"
+        f"FACTS:\n{facts_text}\n\n"
+        f"Provide ONLY the narration text to be spoken aloud — no titles, bullets, "
+        f"or markdown formatting."
     )
 
-def answer_question(context_title: str, facts_text: str, question: str, context_type: str = "item") -> str:
-    """Answer a user question grounded in facts_text with a helpful museum docent persona."""
+    try:
+        response = model.generate_content(prompt)
+        if response and response.text:
+            return response.text.strip()
+    except Exception as exc:
+        logger.error("Gemini narration call failed: %s", exc)
+
+    # If API call fails, still try cached / generic
+    return PRECACHED_NARRATIONS.get(
+        context_title,
+        f"You are viewing {context_title}. {facts_text[:250]}",
+    )
+
+
+def answer_question(
+    context_title: str,
+    facts_text: str,
+    question: str,
+    context_type: str = "item",
+) -> str:
+    """Answer a visitor's free-form question grounded in *facts_text*."""
     model = _get_gemini_model()
-    if not model:
+
+    # ---------- Fallback path ----------
+    if model is None:
         return (
-            f"That's a wonderful question about {context_title}! Based on our records: {facts_text}. "
-            f"Regarding '{question}', the historical evidence highlights the profound craftsmanship and cultural significance of this piece."
+            f"That's a great question about {context_title}! "
+            f"Based on our records: {facts_text[:300]}. "
+            f"The historical evidence highlights the profound craftsmanship and "
+            f"cultural significance of this piece."
         )
 
-    prompt = f"""You are a friendly, knowledgeable museum docent and heritage guide.
-A visitor is currently examining '{context_title}' (a {context_type}) and asked:
-"{question}"
-
-Ground your answer using the verified facts below. If the answer cannot be fully determined from the facts, answer courteously using your art history knowledge while prioritizing the provided facts. Keep the answer concise (2-4 sentences max) suitable for speech audio.
-
-GROUNDING FACTS:
-{facts_text}
-
-Answer directly and warmly:"""
+    # ---------- Live Gemini path ----------
+    prompt = (
+        f"A visitor is currently examining '{context_title}' (a {context_type}) "
+        f"and asked:\n\"{question}\"\n\n"
+        f"Ground your answer using the verified facts below. If the answer cannot "
+        f"be fully determined from the facts, supplement with your art-history "
+        f"knowledge but prefer the provided facts. Keep the answer concise "
+        f"(2-4 sentences) and suitable for text-to-speech.\n\n"
+        f"GROUNDING FACTS:\n{facts_text}\n\n"
+        f"Answer directly and warmly:"
+    )
 
     try:
         response = model.generate_content(prompt)
         if response and response.text:
             return response.text.strip()
-    except Exception as e:
-        logger.error(f"Gemini Q&A answer failed: {e}")
-        return f"Regarding {question} at {context_title}: {facts_text[:200]}..."
+    except Exception as exc:
+        logger.error("Gemini Q&A call failed: %s", exc)
+
+    return (
+        f"I'd love to tell you more about '{context_title}'. "
+        f"Here's what we know: {facts_text[:250]}…"
+    )

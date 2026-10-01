@@ -1,6 +1,10 @@
 import logging
+from contextlib import asynccontextmanager
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
+
 from app.config import settings
 from app.database import engine, Base, SessionLocal
 from app.seed import seed_data
@@ -9,24 +13,33 @@ from app.routes import monuments, paintings, qa
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# Initialize database schema
-Base.metadata.create_all(bind=engine)
 
-# Seed initial data on startup
-with SessionLocal() as db:
-    try:
-        seed_data(db)
-        logger.info("Database checked and seeded successfully.")
-    except Exception as e:
-        logger.error(f"Error seeding database: {e}")
+# ---------------------------------------------------------------------------
+# Lifespan — create tables & seed data on startup
+# ---------------------------------------------------------------------------
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    Base.metadata.create_all(bind=engine)
+    with SessionLocal() as db:
+        try:
+            seed_data(db)
+            logger.info("Database tables created and seed data verified.")
+        except Exception as exc:
+            logger.error("Seed error: %s", exc)
+    yield  # app is now running
+    # Shutdown cleanup (if needed) goes here
+
 
 app = FastAPI(
     title=settings.PROJECT_NAME,
-    description="Backend API for Immersive AI Heritage & Art Experience (ACM x MLH Hack Days 2026)",
+    description=settings.PROJECT_DESCRIPTION,
     version="1.0.0",
+    lifespan=lifespan,
 )
 
-# CORS configuration to allow local frontend development
+# ---------------------------------------------------------------------------
+# Middleware
+# ---------------------------------------------------------------------------
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.CORS_ORIGINS,
@@ -35,26 +48,30 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Register routes
-app.include_router(monuments.router)
-app.include_router(paintings.router)
-app.include_router(qa.router)
+# ---------------------------------------------------------------------------
+# Routes
+# ---------------------------------------------------------------------------
+app.include_router(monuments.router, prefix="", tags=["Monuments & POIs"])
+app.include_router(paintings.router, prefix="", tags=["Art Gallery"])
+app.include_router(qa.router, prefix="", tags=["AI Q&A"])
 
-@app.get("/")
+
+@app.get("/", tags=["Root"])
 def root():
     return {
-        "status": "online",
         "project": settings.PROJECT_NAME,
-        "docs_url": "/docs",
-        "endpoints": [
-            "/monuments/1/pois",
-            "/narrate/1",
-            "/paintings",
-            "/painting-info/1",
-            "/ask"
-        ]
+        "status": "online",
+        "docs": "/docs",
+        "endpoints": {
+            "monuments": "/monuments/1/pois",
+            "narrate": "/narrate/{poi_id}",
+            "paintings": "/paintings",
+            "painting_info": "/painting-info/{painting_id}",
+            "ask": "/ask  (POST)",
+        },
     }
 
-@app.get("/health")
+
+@app.get("/health", tags=["Root"])
 def health():
-    return {"status": "ok"}
+    return {"status": "ok", "project": settings.PROJECT_NAME}
