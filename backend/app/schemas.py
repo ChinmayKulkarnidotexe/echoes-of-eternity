@@ -51,6 +51,7 @@ class AskRequest(BaseModel):
     context_type: Literal["poi", "painting"]
     context_id: int
     question: str
+    target_lang: Optional[str] = "en"
 
 class AskResponse(BaseModel):
     question: str
@@ -58,6 +59,8 @@ class AskResponse(BaseModel):
     context_type: str
     context_id: int
     context_title: str
+    translated_question: Optional[str] = None
+    target_lang: Optional[str] = "en"
 
 class NarrationResponse(BaseModel):
     context_type: str
@@ -65,3 +68,4 @@ class NarrationResponse(BaseModel):
     title: str
     narration: str
     facts_text: str
+    lang: Optional[str] = "en"

@@ -34,6 +34,7 @@ export interface NarrationResponse {
   title: string;
   narration: string;
   facts_text: string;
+  lang?: string;
 }
 
 export interface AskResponse {
@@ -42,4 +43,21 @@ export interface AskResponse {
   context_type: 'poi' | 'painting';
   context_id: number;
   context_title: string;
+  translated_question?: string;
+  target_lang?: string;
 }
+
+export interface AccentOption {
+  code: string;       // BCP 47 locale e.g. 'en-US', 'en-GB'
+  name: string;       // Country / Region name e.g. 'United States'
+  flag: string;       // Emoji flag e.g. '🇺🇸'
+}
+
+export interface LanguageOption {
+  id: string;         // 'en', 'es', etc.
+  name: string;       // 'English', 'Spanish'
+  nativeName: string; // 'English', 'Español'
+  flag: string;
+  accents: AccentOption[];
+}
+

@@ -1,8 +1,10 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react';
 import * as THREE from 'three';
-import type { Painting } from '../../types';
-import { X, ZoomIn, ZoomOut, RotateCcw, Eye, BookOpen } from 'lucide-react';
+import type { Painting, LanguageOption, AccentOption } from '../../types';
+import { X, ZoomIn, ZoomOut, RotateCcw, Eye, BookOpen, Globe } from 'lucide-react';
 import { GalleryVoicePanel } from './GalleryVoicePanel';
+import { DEFAULT_LANGUAGE, DEFAULT_ACCENT } from '../../data/languages';
+import { getMuseumHeaders } from '../../utils/i18nHeaders';
 
 interface Props {
   painting: Painting;
@@ -57,6 +59,56 @@ const DETAILS_BY_KEY: Record<string, PaintingDetail> = {
       "Known as the 'Mona Lisa of the North'; Vermeer left only 36 known works.",
     ],
   },
+  card_players: {
+    medium: 'Oil on canvas · 47.5 × 57 cm',
+    location: "Musée d'Orsay, Paris",
+    facts: [
+      'Models were farmhands on the Cézanne family estate at Le Jas de Bouffan.',
+      'Depicts silent, monumental concentration rather than traditional tavern drama.',
+      'Part of a famous series of 5 paintings, one of which sold for over $250 million.',
+      'Its pure planar geometry directly inspired Picasso and the birth of Cubism.',
+    ],
+  },
+  interchange: {
+    medium: 'Oil on canvas · 200.7 × 175.3 cm',
+    location: 'Private collection · Art Institute of Chicago',
+    facts: [
+      "Marked De Kooning's transition from the 'Woman' series into abstract urban landscapes.",
+      'Sold privately in September 2015 to Kenneth C. Griffin for $300 million.',
+      'Kinetic brushwork in flesh tones, fiery orange, and blues captures 1950s NYC.',
+      'Painted using commercial house painter brushes alongside traditional artist oils.',
+    ],
+  },
+  red_vineyard: {
+    medium: 'Oil on canvas · 75 × 93 cm',
+    location: 'Pushkin State Museum of Fine Arts, Moscow',
+    facts: [
+      'Painted in Arles in November 1888 while living with Paul Gauguin.',
+      'The only artwork documented as officially sold during Van Gogh’s lifetime.',
+      'Purchased for 400 Belgian francs in 1890 by impressionist painter Anna Boch.',
+      'Captures harvesters under a glowing sun amid vibrant wine-red foliage.',
+    ],
+  },
+  salvator_mundi: {
+    medium: 'Oil on walnut panel · 65.6 × 45.4 cm',
+    location: 'Private collection (Louvre Abu Dhabi)',
+    facts: [
+      'Depicts Christ in blessing, holding a crystalline orb representing the heavens.',
+      "Sold at Christie's New York in 2017 for $450.3 million, an all-time world record.",
+      'Features Leonardo’s peerless sfumato and scientifically accurate crystal inclusions.',
+      'Long believed lost or destroyed; rediscovered and authenticated in 2008.',
+    ],
+  },
+  rooftops: {
+    medium: 'Watercolor, gouache & pencil · 39 × 55.5 cm',
+    location: 'Van Gogh Museum / Private collection',
+    facts: [
+      'Painted in May 1882 from the attic window of Van Gogh’s Schenkweg studio.',
+      'One of his earliest ambitious perspective experiments using a handmade frame.',
+      'Depicts the carpentry yard, laundry lines, and smoking chimneys of The Hague.',
+      'Reflects young Van Gogh’s deep empathy for the everyday working-class world.',
+    ],
+  },
 };
 
 function getPaintingDetails(painting: Painting): PaintingDetail {
@@ -65,6 +117,11 @@ function getPaintingDetails(painting: Painting): PaintingDetail {
   if (t.includes('mona') || t.includes('gioconda') || painting.id === 2) return DETAILS_BY_KEY.mona;
   if (t.includes('wave') || t.includes('kanagawa') || painting.id === 3) return DETAILS_BY_KEY.wave;
   if (t.includes('pearl') || t.includes('earring') || painting.id === 4) return DETAILS_BY_KEY.pearl;
+  if (t.includes('card') || t.includes('player') || painting.id === 5) return DETAILS_BY_KEY.card_players;
+  if (t.includes('interchange') || painting.id === 6) return DETAILS_BY_KEY.interchange;
+  if (t.includes('vineyard') || painting.id === 7) return DETAILS_BY_KEY.red_vineyard;
+  if (t.includes('salvator') || t.includes('mundi') || painting.id === 8) return DETAILS_BY_KEY.salvator_mundi;
+  if (t.includes('roof') || t.includes('hague') || painting.id === 9) return DETAILS_BY_KEY.rooftops;
 
   return {
     medium: 'Masterpiece · Fine Art',
@@ -135,7 +192,11 @@ function wrapText(
 }
 
 // ── Ultra High-DPI canvas texture for the 3D museum stand ────
-function buildLabelTexture(painting: Painting): THREE.CanvasTexture {
+function buildLabelTexture(
+  painting: Painting,
+  langId: string = 'en',
+  customFacts?: string[],
+): THREE.CanvasTexture {
   const W = 1024;
   const H = 1480;
   const c = document.createElement('canvas');
@@ -145,6 +206,8 @@ function buildLabelTexture(painting: Painting): THREE.CanvasTexture {
 
   ctx.imageSmoothingEnabled = true;
   ctx.imageSmoothingQuality = 'high';
+
+  const headers = getMuseumHeaders(langId);
 
   // 1. Base dark background with warm vignette
   ctx.fillStyle = '#0d0a08';
@@ -177,11 +240,11 @@ function buildLabelTexture(painting: Painting): THREE.CanvasTexture {
   drawDiamond(ctx, 42, H - 42, 6);
   drawDiamond(ctx, W - 42, H - 42, 6);
 
-  // 3. Header: "MUSEUM LABEL"
+  // 3. Header: "MUSEUM LABEL" (translated)
   ctx.fillStyle = '#d4af37';
   ctx.font = 'bold 26px Georgia, serif';
   ctx.textAlign = 'left';
-  ctx.fillText('M U S E U M   L A B E L', 75, 110);
+  ctx.fillText(headers.museumLabel, 75, 110);
 
   // 4. Painting Title
   ctx.fillStyle = '#fbf7ee';
@@ -202,6 +265,7 @@ function buildLabelTexture(painting: Painting): THREE.CanvasTexture {
 
   // Fetch verified museum catalog details
   const details = getPaintingDetails(painting);
+  const factsList = customFacts && customFacts.length > 0 ? customFacts : details.facts;
 
   // 7. Medium & Dimensions
   ctx.fillStyle = '#c98936';
@@ -228,15 +292,15 @@ function buildLabelTexture(painting: Painting): THREE.CanvasTexture {
   ctx.fillStyle = '#d4af37';
   drawDiamond(ctx, W / 2, y, 7);
 
-  // 10. Header: "DID YOU KNOW"
+  // 10. Header: "DID YOU KNOW" (translated)
   y += 58;
   ctx.fillStyle = '#d4af37';
   ctx.font = 'bold 25px Georgia, serif';
-  ctx.fillText('D I D   Y O U   K N O W', 75, y);
+  ctx.fillText(headers.didYouKnow, 75, y);
 
   // 11. Iconic Facts with Gold Diamond Bullets
   y += 52;
-  for (const fact of details.facts) {
+  for (const fact of factsList) {
     // Diamond bullet
     ctx.fillStyle = '#d4af37';
     drawDiamond(ctx, 84, y - 9, 8);
@@ -260,7 +324,14 @@ export const PaintingViewer: React.FC<Props> = ({ painting, onClose }) => {
   const cameraRef = useRef<THREE.PerspectiveCamera | null>(null);
   const canvasMeshRef = useRef<THREE.Mesh | null>(null);
   const plaqueMeshRef = useRef<THREE.Group | null>(null);
+  const labelMeshRef = useRef<THREE.Mesh | null>(null);
   const animIdRef = useRef<number>(0);
+
+  // Language & Accent State
+  const [language, setLanguage] = useState<LanguageOption>(DEFAULT_LANGUAGE);
+  const [accent, setAccent] = useState<AccentOption>(DEFAULT_ACCENT);
+  const [isLangDropdownOpen, setIsLangDropdownOpen] = useState(false);
+
   const [loading, setLoading] = useState(true);
   const [zoom, setZoom] = useState(1.0);
   const [currentView, setCurrentView] = useState<'both' | 'painting' | 'stand'>('both');
@@ -296,7 +367,7 @@ export const PaintingViewer: React.FC<Props> = ({ painting, onClose }) => {
   const focusStand = useCallback(() => {
     setCurrentView('stand');
     lookTarget.current.set(2.45, -0.38, 0.9);
-    sph.current = { theta: -0.34, phi: Math.PI / 2 - 0.20, r: 2.1 };
+    sph.current = { theta: -0.34, phi: Math.PI / 2 - 0.2, r: 2.1 };
     setZoom(2.6);
     updateCamera();
   }, [updateCamera]);
@@ -308,6 +379,16 @@ export const PaintingViewer: React.FC<Props> = ({ painting, onClose }) => {
     setZoom(1.0);
     updateCamera();
   }, [updateCamera]);
+
+  // Update Stand Plaque Canvas Texture on language change
+  useEffect(() => {
+    if (labelMeshRef.current) {
+      const newTex = buildLabelTexture(painting, language.id);
+      const mat = labelMeshRef.current.material as THREE.MeshBasicMaterial;
+      mat.map = newTex;
+      mat.needsUpdate = true;
+    }
+  }, [painting, language.id]);
 
   useEffect(() => {
     const el = mountRef.current;
@@ -444,8 +525,8 @@ export const PaintingViewer: React.FC<Props> = ({ painting, onClose }) => {
     // 3. Plaque Group (angled toward viewer)
     const plaqueG = new THREE.Group();
     plaqueG.position.set(2.45, -0.38, 0.9);
-    plaqueG.rotation.x = -0.20; // naturally tilted back like museum display lectern
-    plaqueG.rotation.y = -0.34; // angled 20 degrees towards the center/viewer
+    plaqueG.rotation.x = -0.2;
+    plaqueG.rotation.y = -0.34;
 
     const plaqueWidth = 0.96;
     const plaqueHeight = 1.38;
@@ -462,30 +543,43 @@ export const PaintingViewer: React.FC<Props> = ({ painting, onClose }) => {
     const borderThick = 0.035;
     const borderDepth = 0.052;
 
-    const topRail = new THREE.Mesh(new THREE.BoxGeometry(plaqueWidth + 0.04, borderThick, borderDepth), bronzeMat);
+    const topRail = new THREE.Mesh(
+      new THREE.BoxGeometry(plaqueWidth + 0.04, borderThick, borderDepth),
+      bronzeMat,
+    );
     topRail.position.set(0, plaqueHeight / 2 + borderThick / 2, 0.006);
     plaqueG.add(topRail);
 
-    const botRail = new THREE.Mesh(new THREE.BoxGeometry(plaqueWidth + 0.04, borderThick, borderDepth), bronzeMat);
+    const botRail = new THREE.Mesh(
+      new THREE.BoxGeometry(plaqueWidth + 0.04, borderThick, borderDepth),
+      bronzeMat,
+    );
     botRail.position.set(0, -plaqueHeight / 2 - borderThick / 2, 0.006);
     plaqueG.add(botRail);
 
-    const leftStile = new THREE.Mesh(new THREE.BoxGeometry(borderThick, plaqueHeight + borderThick * 2, borderDepth), bronzeMat);
+    const leftStile = new THREE.Mesh(
+      new THREE.BoxGeometry(borderThick, plaqueHeight + borderThick * 2, borderDepth),
+      bronzeMat,
+    );
     leftStile.position.set(-plaqueWidth / 2 - borderThick / 2, 0, 0.006);
     plaqueG.add(leftStile);
 
-    const rightStile = new THREE.Mesh(new THREE.BoxGeometry(borderThick, plaqueHeight + borderThick * 2, borderDepth), bronzeMat);
+    const rightStile = new THREE.Mesh(
+      new THREE.BoxGeometry(borderThick, plaqueHeight + borderThick * 2, borderDepth),
+      bronzeMat,
+    );
     rightStile.position.set(plaqueWidth / 2 + borderThick / 2, 0, 0.006);
     plaqueG.add(rightStile);
 
     // 4. Baked High-DPI Museum Label Plaque Face
-    const labelTex = buildLabelTexture(painting);
+    const labelTex = buildLabelTexture(painting, language.id);
     const labelMesh = new THREE.Mesh(
       new THREE.PlaneGeometry(plaqueWidth - 0.02, plaqueHeight - 0.02),
-      new THREE.MeshBasicMaterial({ map: labelTex }), // MeshBasicMaterial guarantees 100% clarity & brightness
+      new THREE.MeshBasicMaterial({ map: labelTex }),
     );
     labelMesh.position.set(0, 0, plaqueDepth / 2 + 0.002);
     plaqueG.add(labelMesh);
+    labelMeshRef.current = labelMesh;
 
     plaqueMeshRef.current = plaqueG;
     standGroup.add(plaqueG);
@@ -701,53 +795,69 @@ export const PaintingViewer: React.FC<Props> = ({ painting, onClose }) => {
           </p>
         </div>
 
-        {/* View mode switcher */}
-        <div
-          className="pointer-events-auto flex items-center gap-1 p-1 rounded-full"
-          style={{
-            background: 'rgba(18,14,10,0.85)',
-            border: '1px solid rgba(212,175,55,0.25)',
-            backdropFilter: 'blur(16px)',
-          }}
-        >
+        {/* View mode switcher & Language Selector */}
+        <div className="flex items-center gap-3">
+          {/* Language Selector Button */}
           <button
-            id="view-overview"
-            onClick={focusOverview}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium transition-all ${
-              currentView === 'both'
-                ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30'
-                : 'text-stone-400 hover:text-stone-200'
-            }`}
-            title="Overview of room and stand"
+            id="top-language-btn"
+            onClick={() => setIsLangDropdownOpen((p) => !p)}
+            className="pointer-events-auto flex items-center gap-2 px-3.5 py-1.5 rounded-full text-xs font-medium text-amber-200 hover:text-amber-100 bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/30 transition-all backdrop-blur-md shadow-sm"
+            title="Change Language & Regional Accent"
           >
-            <Eye className="w-3.5 h-3.5" />
-            Room
+            <Globe className="w-3.5 h-3.5 text-amber-400" />
+            <span className="text-sm">{accent.flag}</span>
+            <span className="font-serif">{language.nativeName}</span>
+            <span className="text-[10px] text-amber-400/80 font-mono">({accent.name})</span>
           </button>
-          <button
-            id="view-painting"
-            onClick={focusPainting}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium transition-all ${
-              currentView === 'painting'
-                ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30'
-                : 'text-stone-400 hover:text-stone-200'
-            }`}
-            title="Focus close-up on artwork"
+
+          {/* Perspective switcher */}
+          <div
+            className="pointer-events-auto flex items-center gap-1 p-1 rounded-full"
+            style={{
+              background: 'rgba(18,14,10,0.85)',
+              border: '1px solid rgba(212,175,55,0.25)',
+              backdropFilter: 'blur(16px)',
+            }}
           >
-            Artwork
-          </button>
-          <button
-            id="view-stand"
-            onClick={focusStand}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium transition-all ${
-              currentView === 'stand'
-                ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30'
-                : 'text-stone-400 hover:text-stone-200'
-            }`}
-            title="Read museum label stand details up close"
-          >
-            <BookOpen className="w-3.5 h-3.5" />
-            Stand Details
-          </button>
+            <button
+              id="view-overview"
+              onClick={focusOverview}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium transition-all ${
+                currentView === 'both'
+                  ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30'
+                  : 'text-stone-400 hover:text-stone-200'
+              }`}
+              title="Overview of room and stand"
+            >
+              <Eye className="w-3.5 h-3.5" />
+              Room
+            </button>
+            <button
+              id="view-painting"
+              onClick={focusPainting}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium transition-all ${
+                currentView === 'painting'
+                  ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30'
+                  : 'text-stone-400 hover:text-stone-200'
+              }`}
+              title="Focus close-up on artwork"
+            >
+              Artwork
+            </button>
+            <button
+              id="view-stand"
+              onClick={focusStand}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium transition-all ${
+                currentView === 'stand'
+                  ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30'
+                  : 'text-stone-400 hover:text-stone-200'
+              }`}
+              title="Read museum label stand details up close"
+            >
+              <BookOpen className="w-3.5 h-3.5" />
+              Stand Details
+            </button>
+          </div>
         </div>
 
         <button
@@ -804,8 +914,20 @@ export const PaintingViewer: React.FC<Props> = ({ painting, onClose }) => {
         </div>
       )}
 
-      {/* Voice narration & Gemini AI audio Q&A Panel */}
-      {!loading && <GalleryVoicePanel painting={painting} />}
+      {/* Voice narration & Gemini AI audio Q&A Panel with upward Language Dropdown */}
+      {!loading && (
+        <GalleryVoicePanel
+          painting={painting}
+          currentLanguage={language}
+          currentAccent={accent}
+          onSelectLanguage={(newLang, newAccent) => {
+            setLanguage(newLang);
+            setAccent(newAccent);
+          }}
+          isOpenDropdown={isLangDropdownOpen}
+          onToggleDropdown={() => setIsLangDropdownOpen((p) => !p)}
+        />
+      )}
     </div>
   );
 };

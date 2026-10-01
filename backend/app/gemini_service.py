@@ -67,6 +67,31 @@ PRECACHED_NARRATIONS: dict[str, str] = {
         "Golden Age 'tronie' — a character study rather than a portrait. The luminous "
         "pearl earring was rendered with just two strokes of lead white."
     ),
+    "The Card Players": (
+        "Paul Cézanne painted 'The Card Players' in the mid-1890s, portraying farmhands from "
+        "his family estate absorbed in quiet concentration. Its solemn geometry and earthy tones "
+        "laid the cornerstone for the birth of modern cubism."
+    ),
+    "Interchange": (
+        "Created in 1955, Willem de Kooning's 'Interchange' is a landmark of Abstract Expressionism. "
+        "Its violent, kinetic sweeps of peach, orange, and blue evoke the chaotic vitality of "
+        "post-war New York City, making it one of the most valuable paintings in history."
+    ),
+    "The Red Vineyard at Arles": (
+        "Painted in November 1888, 'The Red Vineyard' is celebrated as the only artwork Vincent van Gogh "
+        "officially sold during his lifetime. The fiery red vines under a radiant sunset capture the raw, "
+        "passionate energy of his beloved Provence."
+    ),
+    "Salvator Mundi": (
+        "Attributed to Leonardo da Vinci circa 1500, 'Salvator Mundi' depicts Christ as Savior of the World. "
+        "Holding an orb of celestial crystal and raising two fingers in blessing, it exemplifies Leonardo's "
+        "ethereal sfumato and sold for a record $450.3 million."
+    ),
+    "Rooftops in The Hague": (
+        "Painted in May 1882 from his attic window on Schenkweg, this delicate watercolor and gouache study "
+        "reveals Van Gogh's early mastery of perspective, capturing red tiled rooftops, carpenter yards, and "
+        "rising chimneys across industrial Holland."
+    ),
 }
 
 

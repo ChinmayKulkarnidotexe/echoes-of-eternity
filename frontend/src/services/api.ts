@@ -94,6 +94,51 @@ const FALLBACK_PAINTINGS: Painting[] = [
       "Dutch Golden Age 'tronie'. The luminous pearl earring was painted with just two strokes of lead white. Resides in the Mauritshuis, The Hague.",
     image_path: "/paintings/pearl_earring.jpg",
   },
+  {
+    id: 5,
+    title: "The Card Players",
+    artist: "Paul Cézanne",
+    year: "c. 1894–1895",
+    facts_text:
+      "Masterpiece from Cézanne's landmark series depicting Provençal peasant card players at Le Jas de Bouffan. Celebrated for its monumental geometry that heralded early Cubism.",
+    image_path: "/paintings/card_players.jpg",
+  },
+  {
+    id: 6,
+    title: "Interchange",
+    artist: "Willem de Kooning",
+    year: "1955",
+    facts_text:
+      "Monumental abstract expressionist oil canvas marking De Kooning's transition into dynamic urban landscape painting. Sold in 2015 for $300 million.",
+    image_path: "/paintings/interchange.jpg",
+  },
+  {
+    id: 7,
+    title: "The Red Vineyard at Arles",
+    artist: "Vincent van Gogh",
+    year: "1888",
+    facts_text:
+      "Painted in Arles in November 1888 under a blazing golden sun, capturing grape harvesters among red vines. Celebrated as the only painting officially sold during Van Gogh's lifetime.",
+    image_path: "/paintings/red_vineyard.jpg",
+  },
+  {
+    id: 8,
+    title: "Salvator Mundi",
+    artist: "Leonardo da Vinci",
+    year: "c. 1499–1510",
+    facts_text:
+      "Renaissance masterpiece portraying Christ in blessing holding a celestial rock crystal orb. Renowned for Leonardo's sfumato and sold at auction for $450.3 million.",
+    image_path: "/paintings/salvator_mundi.jpg",
+  },
+  {
+    id: 9,
+    title: "Rooftops in The Hague",
+    artist: "Vincent van Gogh",
+    year: "1882",
+    facts_text:
+      "Intimate early perspective study in watercolor and gouache painted from Van Gogh's attic studio on Schenkweg in The Hague, capturing red roofs, carpentry sheds, and smoking chimneys.",
+    image_path: "/paintings/rooftops_hague.jpg",
+  },
 ];
 
 // ---------------------------------------------------------------------------
@@ -144,9 +189,10 @@ export async function fetchPaintings(): Promise<Painting[]> {
 
 export async function fetchPaintingInfo(
   paintingId: number,
+  lang: string = "en",
 ): Promise<NarrationResponse> {
   try {
-    const res = await fetch(`${API_BASE_URL}/painting-info/${paintingId}`);
+    const res = await fetch(`${API_BASE_URL}/painting-info/${paintingId}?lang=${encodeURIComponent(lang)}`);
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     return await res.json();
   } catch (err) {
@@ -168,6 +214,7 @@ export async function askQuestion(
   contextType: "poi" | "painting",
   contextId: number,
   question: string,
+  targetLang: string = "en",
 ): Promise<AskResponse> {
   try {
     const res = await fetch(`${API_BASE_URL}/ask`, {
@@ -177,6 +224,7 @@ export async function askQuestion(
         context_type: contextType,
         context_id: contextId,
         question,
+        target_lang: targetLang,
       }),
     });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
