@@ -65,8 +65,7 @@ const FALLBACK_PAINTINGS: Painting[] = [
     year: "1889",
     facts_text:
       "Painted in June 1889 from the asylum in Saint-Rémy. Swirling sky vortices, 11 stars, and a towering cypress connecting heaven and earth.",
-    image_path:
-      "https://upload.wikimedia.org/wikipedia/commons/thumb/e/ea/Van_Gogh_-_Starry_Night_-_Google_Art_Project.jpg/1280px-Van_Gogh_-_Starry_Night_-_Google_Art_Project.jpg",
+    image_path: "/paintings/starry_night.jpg",
   },
   {
     id: 2,
@@ -75,8 +74,7 @@ const FALLBACK_PAINTINGS: Painting[] = [
     year: "1503–1519",
     facts_text:
       "Portrait of Lisa Gherardini using sfumato technique. Her ambiguous smile shifts depending on where the viewer focuses.",
-    image_path:
-      "https://upload.wikimedia.org/wikipedia/commons/thumb/e/ec/Mona_Lisa%2C_by_Leonardo_da_Vinci%2C_from_C2RMF_retouched.jpg/800px-Mona_Lisa%2C_by_Leonardo_da_Vinci%2C_from_C2RMF_retouched.jpg",
+    image_path: "/paintings/mona_lisa.jpg",
   },
   {
     id: 3,
@@ -85,8 +83,7 @@ const FALLBACK_PAINTINGS: Painting[] = [
     year: "c. 1831",
     facts_text:
       "First print in 'Thirty-Six Views of Mount Fuji'. Rogue waves over cargo boats with Mt. Fuji in the background. Prussian blue pigment.",
-    image_path:
-      "https://upload.wikimedia.org/wikipedia/commons/thumb/a/a5/Tsunami_by_hokusai_19th_century.jpg/1280px-Tsunami_by_hokusai_19th_century.jpg",
+    image_path: "/paintings/great_wave.jpg",
   },
   {
     id: 4,
@@ -95,8 +92,7 @@ const FALLBACK_PAINTINGS: Painting[] = [
     year: "c. 1665",
     facts_text:
       "Dutch Golden Age 'tronie'. The luminous pearl earring was painted with just two strokes of lead white. Resides in the Mauritshuis, The Hague.",
-    image_path:
-      "https://upload.wikimedia.org/wikipedia/commons/thumb/0/0f/1665_Girl_with_a_Pearl_Earring.jpg/800px-1665_Girl_with_a_Pearl_Earring.jpg",
+    image_path: "/paintings/pearl_earring.jpg",
   },
 ];
 
