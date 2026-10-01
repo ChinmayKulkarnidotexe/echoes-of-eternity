@@ -1,10 +1,32 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Send, Sparkles, Loader2, X, Mic, MicOff, Volume2, VolumeX } from 'lucide-react';
-import type { Painting } from '../../types';
+import type { AccentOption, LanguageOption, Painting } from '../../types';
 import { askQuestion } from '../../services/api';
+import { DEFAULT_ACCENT, DEFAULT_LANGUAGE } from '../../data/languages';
 
 interface Props {
   painting: Painting;
+  /**
+   * The language and regional accent chosen in the viewer.
+   *
+   * All three legs of the conversation follow this: the question is sent with
+   * `target_lang` so the backend translates it into English for grounding and
+   * the answer back out again, the microphone listens in the chosen locale, and
+   * the answer is spoken by a voice matching that accent. Without it the picker
+   * only relabelled the plaque in the room.
+   */
+  language?: LanguageOption;
+  accent?: AccentOption;
+}
+
+/** Best available voice for a locale, falling back to the base language. */
+function pickVoiceForLocale(localeCode: string): SpeechSynthesisVoice | null {
+  const voices = window.speechSynthesis?.getVoices() ?? [];
+  if (!voices.length) return null;
+  const exact = voices.find((v) => v.lang.toLowerCase() === localeCode.toLowerCase());
+  if (exact) return exact;
+  const base = localeCode.split('-')[0].toLowerCase();
+  return voices.find((v) => v.lang.toLowerCase().startsWith(base)) ?? null;
 }
 
 const SUGGESTIONS: Record<string, string[]> = {
@@ -39,7 +61,11 @@ function getSuggestions(painting: Painting): string[] {
   return ['What is the historical significance?', 'Tell me an interesting detail about this work'];
 }
 
-export const PaintingAskBar: React.FC<Props> = ({ painting }) => {
+export const PaintingAskBar: React.FC<Props> = ({
+  painting,
+  language = DEFAULT_LANGUAGE,
+  accent = DEFAULT_ACCENT,
+}) => {
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
   const [lastQ, setLastQ] = useState('');
@@ -74,7 +100,7 @@ export const PaintingAskBar: React.FC<Props> = ({ painting }) => {
     setIsSpeaking(false);
 
     try {
-      const res = await askQuestion('painting', painting.id, q);
+      const res = await askQuestion('painting', painting.id, q, language.id);
       setAnswer(res.answer);
     } catch {
       setAnswer('Could not retrieve an answer at this moment. Please try asking again.');
@@ -94,6 +120,10 @@ export const PaintingAskBar: React.FC<Props> = ({ painting }) => {
     const utt = new SpeechSynthesisUtterance(answer);
     utt.rate = 0.95;
     utt.pitch = 1.0;
+    // Speak the answer in the chosen language and regional accent.
+    utt.lang = accent.code;
+    const voice = pickVoiceForLocale(accent.code);
+    if (voice) utt.voice = voice;
     utt.onend = () => setIsSpeaking(false);
     utt.onerror = () => setIsSpeaking(false);
     setIsSpeaking(true);
@@ -114,7 +144,8 @@ export const PaintingAskBar: React.FC<Props> = ({ painting }) => {
     }
 
     const rec = new SR();
-    rec.lang = 'en-US';
+    // Listen in the visitor's own language and accent, not always US English.
+    rec.lang = accent.code;
     rec.interimResults = false;
     rec.maxAlternatives = 1;
     recognitionRef.current = rec;

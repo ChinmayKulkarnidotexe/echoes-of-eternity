@@ -1,4 +1,4 @@
-# 🏛️ Echoes of Eternity — Immersive AI Heritage & Art Experience
+# Echoes of Eternity — Immersive AI Heritage & Art Experience
 
 **ACM x MLH Hack Days 2026 · NMAMIT · Track 1: "What is Earth without art?"**
 **Team Size:** 2 Developers · **Build Window:** 6 Hours · **Gemini Integration:** Compulsory
@@ -10,8 +10,31 @@
 **Echoes of Eternity** transforms passive cultural exploration into an engaging, multi-sensory virtual journey:
 
 1. **Monument Experience** — The **Statue of Liberty**, in three modes that hand off to each other automatically.
-2. **Fine Art Gallery** — Inspect public-domain masterpieces (*The Starry Night*, *Mona Lisa*, *The Great Wave*, *Girl with a Pearl Earring*) in an interactive Three.js 3D orbit/tilt viewer.
-3. **Gemini AI Docent** — In both places, listen to audio narration and ask free-form questions via voice or text, answered by Google Gemini grounded strictly in verified historical facts.
+2. **The Grand Gallery** — A Three.js museum hall with skylights, exhibition bays and 3D plinths, holding nine public-domain masterpieces you can walk up to and examine.
+3. **Gemini AI Docent** — In both places, listen to audio narration and ask free-form questions by voice or text, answered by Google Gemini grounded strictly in verified facts.
+4. **Speaks your language** — Narration, answers and the microphone all follow a chosen language and regional accent, with the gallery's plaques and headings localised to match.
+
+---
+
+## Voice: language & accent
+
+The gallery carries a language picker (`LanguageDropdownUpward`, backed by
+`src/data/languages.ts`) offering a language and a regional accent — the accent
+is a BCP 47 locale such as `en-GB` or `es-MX`, not just a flag.
+
+That choice drives four things at once, and all four have to agree or the
+feature is only cosmetic:
+
+| What | How the locale is used |
+|---|---|
+| **Questions** | `askQuestion(..., language.id)` sends `target_lang`; the backend translates to English, grounds the answer in the English facts, and translates the answer back |
+| **Answers spoken** | `utterance.lang` is set to the accent code and a matching `SpeechSynthesisVoice` is selected, falling back to the base language when the exact locale has no voice installed |
+| **Microphone** | `recognition.lang` is set to the accent code, so the visitor is transcribed in their own language |
+| **The room itself** | The plinth plaque texture is rebuilt per language, and museum headings come from `getMuseumHeaders(langId)` |
+
+Translation happens in `backend/app/translation_service.py`; grounding stays in
+English throughout, so a question asked in Spanish is answered from exactly the
+same verified facts as one asked in English.
 
 ---
 
@@ -107,7 +130,10 @@ acm-mlh-hackathon/
 │       │   ├── geo.ts              # Bearings, distances, panorama projection
 │       │   └── loaders.ts          # Single-flight Maps JS + CesiumJS loaders
 │       ├── hooks/
-│       │   └── useNarration.ts     # Paces each narration leg off the voice
+│       │   ├── useNarration.ts     # Paces each narration leg off the voice
+│       │   └── useVoiceInput.ts    # Microphone capture that fails loudly
+│       ├── data/languages.ts       # Languages + regional accents (BCP 47)
+│       ├── utils/i18nHeaders.ts    # Localised museum headings
 │       ├── services/
 │       │   ├── api.ts              # API client with offline fallbacks
 │       │   ├── fallbackExperience.ts  # Generated offline copy of /experience/1
@@ -122,10 +148,18 @@ acm-mlh-hackathon/
 │       │   │   ├── FreeRoamHud.tsx         # POI index, vantage rail, ask bar
 │       │   │   ├── NarrationBar.tsx        # Captions + transport controls
 │       │   │   └── ModeStepper.tsx         # Stage rail / navigation
-│       │   ├── Navigation/Navbar.tsx
-│       │   ├── Gallery/GalleryGrid.tsx
-│       │   ├── Gallery/PaintingViewer.tsx
-│       │   └── AIGuide/GuidePanel.tsx
+│       │   ├── Gallery/
+│       │   │   ├── PaintingViewer.tsx      # The 3D Grand Gallery hall
+│       │   │   ├── PaintingAskBar.tsx      # Curator Q&A, localised voice I/O
+│       │   │   ├── GalleryVoicePanel.tsx   # (unused — see Dead code below)
+│       │   │   └── GalleryGrid.tsx         # (unused)
+│       │   ├── LanguageDropdownUpward.tsx  # Language + accent picker
+│       │   ├── LanguageSelectorModal.tsx   # (unused — modal variant)
+│       │   ├── LandingPage.tsx
+│       │   ├── MonumentsPage.tsx
+│       │   ├── PaintingsPage.tsx
+│       │   ├── Navigation/Navbar.tsx       # (unused)
+│       │   └── AIGuide/GuidePanel.tsx      # (unused)
 │       ├── App.tsx
 │       ├── main.tsx
 │       └── index.css
@@ -135,7 +169,11 @@ acm-mlh-hackathon/
     ├── requirements.txt
     ├── .cache/                     # Cached Google/Gemini responses (gitignored)
     ├── scripts/
-    │   └── export_fallback.py      # Regenerates the frontend offline bundle
+    │   ├── export_fallback.py      # Regenerates the frontend offline bundle
+    │   ├── capture_plate.py        # One-off: saves the catalogue card image
+    │   ├── check_gemini.py         # End-to-end Gemini smoke test
+    │   ├── probe_quota.py          # Which Gemini models still have quota today
+    │   └── list_models.py          # Models this key may call
     └── app/
         ├── __init__.py
         ├── config.py
@@ -147,7 +185,8 @@ acm-mlh-hackathon/
         ├── tour_data.py            # Authored, coverage-verified tour content
         ├── maps_service.py         # Street View + 3D Tiles access, cached
         ├── experience_service.py   # Assembles the three-mode bundle
-        ├── gemini_service.py       # Gemini prompts, system instruction, fallbacks
+        ├── gemini_service.py       # Gemini prompts, pacing, model rotation
+        ├── translation_service.py  # Google Translate, for non-English visitors
         ├── main.py                 # FastAPI app with async lifespan
         └── routes/
             ├── __init__.py
@@ -174,7 +213,8 @@ acm-mlh-hackathon/
 | `/narrate/{poi_id}` | GET | Gemini narration for a specific POI |
 | `/paintings` | GET | All gallery paintings |
 | `/painting-info/{id}` | GET | Gemini narration for a painting |
-| `/ask` | POST | Grounded Q&A — body: `{context_type, context_id, question}`. `context_type` is `poi`, `painting`, `waypoint`, `hotspot` or `monument`; the last three take string ids from `tour_data.py` |
+| `/ask` | POST | Grounded Q&A — body: `{context_type, context_id, question, target_lang}`. `context_type` is `poi`, `painting`, `waypoint`, `hotspot` or `monument`; the last three take string ids from `tour_data.py`. A non-English `target_lang` round-trips through Google Translate around the English grounding |
+| `/painting-info/{id}?lang=` | GET | Painting narration, optionally translated |
 | `/health` | GET | Health check, key configuration and cache counts |
 
 ---
@@ -210,11 +250,24 @@ cd backend
 python -m venv .venv
 .venv\Scripts\Activate.ps1          # Windows
 pip install -r requirements.txt
-cp .env.example .env                # Add GEMINI_API_KEY
+cp .env.example .env                # Add GEMINI_API_KEY and GOOGLE_MAPS_API
 uvicorn app.main:app --reload --port 8000
 ```
 
 API docs → [http://localhost:8000/docs](http://localhost:8000/docs)
+
+`backend/.env` keys:
+
+| Key | Purpose |
+|---|---|
+| `GOOGLE_MAPS_API` | Street View, Photorealistic 3D Tiles, Translate |
+| `GEMINI_API_KEY` | Live answers to visitor questions |
+| `GEMINI_MODEL` | Defaults to `gemini-3.5-flash`; a retired name rotates automatically |
+| `GEMINI_POLISH_NARRATION` | `1` lets Gemini rewrite the tour script. Off by default — see *Where Gemini is spent* |
+
+On Windows, `start-dev.ps1` launches both servers and first clears any stale
+`uvicorn` worker still holding port 8000 — one of those surviving a closed
+terminal looks exactly like the backend serving outdated data.
 
 ### Frontend (Person A)
 
@@ -235,8 +288,97 @@ App → [http://localhost:5173](http://localhost:5173)
 |---|---|
 | Map Tiles API not enabled / 3D Tiles fail | The aerial view explains what is missing and hands over to the guided walk after a few seconds, rather than trapping the visitor on a dead screen |
 | Backend offline | The frontend falls back to a generated offline copy of the experience bundle (`fallbackExperience.ts`) — all three modes still run |
-| Gemini rate limit / no key | Every line of narration is hand-written and demo-ready; Gemini only polishes it, and the result is cached permanently |
+| Gemini rate limit / no key | Every line of narration is hand-written and demo-ready; Gemini is reserved for live questions, and a retired model or spent daily quota rotates to the next candidate automatically |
 | Street View coverage changes | All 11 panorama IDs are pinned, not looked up live; `/maps/streetview/verify` confirms they still resolve |
-| Speech cuts out mid-sentence | Chrome stops synthesising after ~15 s; a pause/resume keepalive prevents it, and the tour advances on a stall guard if the voice dies silently |
+| Speech cuts out mid-sentence | Chrome stops synthesising after ~15 s; a keepalive prevents it, and the tour advances on a stall guard if the voice dies silently |
+| Tour races past when there is no audio | Speech reports `end` immediately when it cannot play (no output device, backgrounded tab). Each stop has a minimum on-screen time, so the walk stays watchable in silence |
+| Microphone silently does nothing | Every voice session has an `end` handler, a 9-second watchdog and a visible message, so a blocked permission says so instead of sticking on "listening" |
+| Database holds an earlier build's data | Both the monument and the gallery seeds replace a set that does not match this build, rather than skipping because rows already exist |
+| Painting images unreachable | All nine are local files under `frontend/public/paintings`, not hot-linked |
 | Database setup delays | SQLite is used by default — zero config, works instantly |
 | Venue wifi drops | Everything runs on localhost; record a backup demo video |
+
+---
+
+## What changed, and why
+
+The reasoning behind the less obvious decisions, so nobody re-litigates them
+from scratch:
+
+**The monument experience was rebuilt as three modes.** It replaced a single
+Street View panel with POI buttons. `MonumentExperiencePage.tsx` and
+`StreetView/StreetViewPanel.tsx` were removed.
+
+**The database held the wrong monument.** The seed had been rewritten for the
+Statue of Liberty but only ran when the tables were empty, so an earlier build's
+Taj Mahal data survived every restart. `seed.py` is now self-healing: it
+replaces a monument that does not match this build, while leaving the gallery
+alone.
+
+**Only one monument is listed, deliberately.** Each site needs verified Street
+View coverage and an authored script in `tour_data.py` first; listing one
+without that offers a tour that cannot run.
+
+**Hotspots are placed anatomically, not stacked.** Seven markers on the central
+axis piled up on screen. Five now sit on the statue's own geometry — she faces
+south-east, so the torch arm points south-west and the tablet north-east — which
+separates them horizontally from every vantage point.
+
+**Gemini is spent on questions, not narration.** The free tier allows roughly
+twenty requests per *day* per model. Polishing the fourteen tour lines would
+consume most of that to rewrite prose already written for speech.
+
+**Pause stopped using `speechSynthesis.pause()`.** Chrome does not honour it for
+the remote voices this guide prefers, so a keepalive nudge was restarting
+narration the visitor had stopped. A pause now cancels and remembers the
+character offset; resume speaks the remainder.
+
+**Emoji were replaced with Lucide icons** throughout the monument flow and the
+landing and catalogue pages, and the pages were rebuilt to read as editorial
+layouts rather than generated ones.
+
+**`.gitignore` was swallowing `frontend/src/lib/`** via an unanchored Python
+`lib/` rule. The Python entries are now anchored to `backend/`.
+
+**The catalogue card image is a local file.** The stock photograph there showed
+the Manhattan skyline rather than the monument; `scripts/capture_plate.py`
+captured the panorama the walk actually opens on, once, at build time.
+
+**The gallery had lost five of its nine paintings.** The images, the frontend
+fallback list and all nine precached narrations were present, but `seed.py` still
+held only the original four and hot-linked them from Wikimedia — so the backend
+served four, and the extra five appeared only when the backend was *down* and the
+offline fallback kicked in. The painting seed is now self-healing like the
+monument one, and serves local images from `frontend/public/paintings`.
+
+**The stash-pop merge.** Two files conflicted — `backend/app/routes/qa.py`
+(docstring only; both code paths had already merged) and
+`frontend/src/types/index.ts` (purely additive). Both sides were kept. The merge
+had also left the gallery's language picker rendering nothing and its ask bar
+hardcoded to English, so the picker only relabelled the plaque; the dropdown is
+mounted again and the locale now reaches the question, the answer's voice and
+the microphone.
+
+---
+
+## Known loose ends
+
+Honest notes on the current state, rather than a clean-looking omission:
+
+- **Dead components.** `GalleryVoicePanel`, `GalleryGrid`, `GuidePanel`,
+  `LanguageSelectorModal` and `Navbar` are no longer referenced by anything —
+  the 3D gallery superseded the grid-and-panel layout. They still compile.
+  `GalleryVoicePanel` is the only caller of `fetchPaintingInfo`, so that API
+  helper is currently unused too. Delete them, or wire one back in; leaving them
+  is the one thing that will mislead a reader.
+- **Three speech implementations.** `services/speech.ts` (monuments, with the
+  pause/resume and keepalive work) and the inline implementations inside
+  `PaintingAskBar` and `GalleryVoicePanel`. They behave differently under pause.
+  Consolidating onto `speech.ts` with a locale argument would give the monument
+  side language support too, which it does not currently have.
+- **Monument narration is English only.** The language picker lives in the
+  gallery; the monument tour always speaks English.
+- **`google.generativeai` is deprecated.** It works, but Google has ended
+  support in favour of `google.genai`. Worth migrating after the hackathon.
+- **Voice input's happy path is unverified.** The failure handling was tested;
+  actual transcription needs a real microphone and a granted permission prompt.

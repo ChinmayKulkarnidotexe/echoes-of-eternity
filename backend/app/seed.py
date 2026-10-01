@@ -42,16 +42,22 @@ def _build_pois(monument_id: int) -> list[POI]:
 
 
 def _seed_paintings(db: Session) -> int:
-    """Insert the gallery only when it is empty — existing rows are left alone."""
-    if db.query(Painting).first():
-        return 0
+    """Make the gallery match this build's catalogue.
 
-    paintings = [
-        Painting(
-            title="The Starry Night",
-            artist="Vincent van Gogh",
-            year="1889",
-            facts_text=(
+    Self-healing for the same reason the monument seed is: an "insert only when
+    empty" guard meant that a database seeded with an earlier, shorter gallery
+    kept serving it forever, no matter how many works were added here. Painting
+    rows are pure seed data, so a mismatched set is replaced wholesale.
+
+    Images are served from ``frontend/public/paintings`` rather than hot-linked
+    from Wikimedia, so the gallery still loads with no internet.
+    """
+    expected = [
+        {
+            "title": "The Starry Night",
+            "artist": "Vincent van Gogh",
+            "year": "1889",
+            "facts_text": (
                 "Painted in June 1889 from the Saint-Paul-de-Mausole asylum in "
                 "Saint-Remy-de-Provence shortly after Van Gogh severed part of his ear. "
                 "It depicts his idealised night view before sunrise, dominated by swirling "
@@ -61,13 +67,13 @@ def _seed_paintings(db: Session) -> int:
                 "impressionist masterpiece is held in the permanent collection of the "
                 "Museum of Modern Art (MoMA) in New York City."
             ),
-            image_path="https://upload.wikimedia.org/wikipedia/commons/thumb/e/ea/Van_Gogh_-_Starry_Night_-_Google_Art_Project.jpg/1280px-Van_Gogh_-_Starry_Night_-_Google_Art_Project.jpg",
-        ),
-        Painting(
-            title="Mona Lisa (La Gioconda)",
-            artist="Leonardo da Vinci",
-            year="1503-1519",
-            facts_text=(
+            "image_path": "/paintings/starry_night.jpg",
+        },
+        {
+            "title": "Mona Lisa (La Gioconda)",
+            "artist": "Leonardo da Vinci",
+            "year": "1503-1519",
+            "facts_text": (
                 "Believed to be a portrait of Lisa Gherardini, wife of Florentine silk "
                 "merchant Francesco del Giocondo. Painted in oil on a white Lombardy poplar "
                 "panel, it is world-renowned for Leonardo's masterly application of sfumato "
@@ -76,13 +82,13 @@ def _seed_paintings(db: Session) -> int:
                 "permanent display at the Musee du Louvre in Paris since 1797 and is viewed "
                 "by approximately 6 million visitors per year."
             ),
-            image_path="https://upload.wikimedia.org/wikipedia/commons/thumb/e/ec/Mona_Lisa%2C_by_Leonardo_da_Vinci%2C_from_C2RMF_retouched.jpg/800px-Mona_Lisa%2C_by_Leonardo_da_Vinci%2C_from_C2RMF_retouched.jpg",
-        ),
-        Painting(
-            title="The Great Wave off Kanagawa",
-            artist="Katsushika Hokusai",
-            year="c. 1831",
-            facts_text=(
+            "image_path": "/paintings/mona_lisa.jpg",
+        },
+        {
+            "title": "The Great Wave off Kanagawa",
+            "artist": "Katsushika Hokusai",
+            "year": "c. 1831",
+            "facts_text": (
                 "The first print in Hokusai's renowned series 'Thirty-Six Views of Mount "
                 "Fuji'. It captures a gigantic rogue wave clawing over three fast cargo "
                 "boats (oshiokuri-bune) in Sagami Bay, with a snow-capped Mount Fuji "
@@ -91,13 +97,13 @@ def _seed_paintings(db: Session) -> int:
                 "far better than traditional Japanese organic indigo. It is one of the "
                 "most reproduced images in art history."
             ),
-            image_path="https://upload.wikimedia.org/wikipedia/commons/thumb/a/a5/Tsunami_by_hokusai_19th_century.jpg/1280px-Tsunami_by_hokusai_19th_century.jpg",
-        ),
-        Painting(
-            title="Girl with a Pearl Earring",
-            artist="Johannes Vermeer",
-            year="c. 1665",
-            facts_text=(
+            "image_path": "/paintings/great_wave.jpg",
+        },
+        {
+            "title": "Girl with a Pearl Earring",
+            "artist": "Johannes Vermeer",
+            "year": "c. 1665",
+            "facts_text": (
                 "Known as the 'Mona Lisa of the North', this Dutch Golden Age masterpiece "
                 "is a 'tronie' - a study of an idealised or exotic character - rather than "
                 "a formal commissioned portrait. The young woman wears an oriental blue and "
@@ -106,12 +112,83 @@ def _seed_paintings(db: Session) -> int:
                 "for the pearl's reflection. It resides in the Mauritshuis museum in The "
                 "Hague, Netherlands."
             ),
-            image_path="https://upload.wikimedia.org/wikipedia/commons/thumb/0/0f/1665_Girl_with_a_Pearl_Earring.jpg/800px-1665_Girl_with_a_Pearl_Earring.jpg",
-        ),
+            "image_path": "/paintings/pearl_earring.jpg",
+        },
+        {
+            "title": "The Card Players",
+            "artist": "Paul Cezanne",
+            "year": "c. 1894-1895",
+            "facts_text": (
+                "Masterpiece from Cezanne's landmark series depicting Provencal peasant card "
+                "players at Le Jas de Bouffan. Celebrated for its monumental geometry and "
+                "earthy tones, which heralded early Cubism. One version sold privately to the "
+                "Royal Family of Qatar for a figure reported at over $250 million."
+            ),
+            "image_path": "/paintings/card_players.jpg",
+        },
+        {
+            "title": "Interchange",
+            "artist": "Willem de Kooning",
+            "year": "1955",
+            "facts_text": (
+                "Monumental abstract expressionist oil canvas marking De Kooning's transition "
+                "into dynamic urban landscape painting. Its kinetic sweeps of peach, orange and "
+                "blue evoke the chaotic vitality of post-war New York City. It sold in 2015 for "
+                "$300 million, among the highest prices ever paid for a painting."
+            ),
+            "image_path": "/paintings/interchange.jpg",
+        },
+        {
+            "title": "The Red Vineyard at Arles",
+            "artist": "Vincent van Gogh",
+            "year": "1888",
+            "facts_text": (
+                "Painted in Arles in November 1888 under a blazing golden sun, capturing grape "
+                "harvesters among red vines. It is celebrated as the only painting Van Gogh is "
+                "known to have officially sold during his lifetime, bought by Anna Boch in 1890. "
+                "It now hangs in the Pushkin Museum in Moscow."
+            ),
+            "image_path": "/paintings/red_vineyard.jpg",
+        },
+        {
+            "title": "Salvator Mundi",
+            "artist": "Leonardo da Vinci",
+            "year": "c. 1499-1510",
+            "facts_text": (
+                "Renaissance work portraying Christ as Saviour of the World, raising two fingers "
+                "in blessing and holding a celestial rock crystal orb. Renowned for Leonardo's "
+                "sfumato, though its attribution remains debated among scholars. It sold at "
+                "auction in 2017 for $450.3 million, the highest price ever paid for a painting."
+            ),
+            "image_path": "/paintings/salvator_mundi.jpg",
+        },
+        {
+            "title": "Rooftops in The Hague",
+            "artist": "Vincent van Gogh",
+            "year": "1882",
+            "facts_text": (
+                "An intimate early perspective study in watercolour and gouache, painted from "
+                "Van Gogh's attic studio on Schenkweg in The Hague. It captures red tiled roofs, "
+                "carpentry sheds and smoking chimneys, and shows his early mastery of perspective "
+                "years before the colour of his Provence work."
+            ),
+            "image_path": "/paintings/rooftops_hague.jpg",
+        },
     ]
-    for painting in paintings:
-        db.add(painting)
-    return len(paintings)
+
+    current = [p.title for p in db.query(Painting).order_by(Painting.id).all()]
+    if current == [p["title"] for p in expected]:
+        return 0
+
+    if current:
+        print(f"[seed] Replacing gallery seeded by an earlier build ({len(current)} works)")
+        for painting in db.query(Painting).all():
+            db.delete(painting)
+        db.flush()
+
+    for row in expected:
+        db.add(Painting(**row))
+    return len(expected)
 
 
 def seed_data(db: Session) -> None:
@@ -122,7 +199,9 @@ def seed_data(db: Session) -> None:
     forever, which is exactly how a database seeded for a different monument
     survives a rewrite of this file. Monument and POI rows are pure seed data —
     nothing user-generated lives in them — so replacing a mismatched monument is
-    safe. The gallery is only ever inserted when empty, never replaced.
+    safe. The gallery is replaced on the same terms, and for the same reason:
+    a database seeded with an earlier, shorter catalogue otherwise keeps
+    serving it no matter what this file says.
     """
     monument = db.query(Monument).filter(Monument.name == MONUMENT_NAME).first()
     stale = db.query(Monument).filter(Monument.name != MONUMENT_NAME).all()

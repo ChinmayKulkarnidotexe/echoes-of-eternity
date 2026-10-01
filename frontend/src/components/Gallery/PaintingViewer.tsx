@@ -1302,7 +1302,9 @@ export const PaintingViewer: React.FC<Props> = ({
       )}
 
       {/* AI Curator Ask Bar */}
-      {!loading && activePainting && <PaintingAskBar painting={activePainting} />}
+      {!loading && activePainting && (
+        <PaintingAskBar painting={activePainting} language={language} accent={accent} />
+      )}
 
       {/* Bottom Masterpiece Quick-Jump Strip */}
       {allPaintings.length > 1 && !loading && (
