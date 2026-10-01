@@ -2,50 +2,57 @@ import type { POI, Painting, NarrationResponse, AskResponse } from '../types';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000';
 
-// Built-in fallback data (PRD Risk Mitigation: works even without backend running)
+// ---------------------------------------------------------------------------
+// Fallback data — lets the frontend run even when the backend is offline
+// (PRD §12: Risk Mitigation)
+// ---------------------------------------------------------------------------
 const FALLBACK_POIS: POI[] = [
   {
     id: 1,
     monument_id: 1,
-    name: "The Great Gate (Darwaza-i-Rauza)",
-    facts_text: "The main gateway to the Taj Mahal complex, built in red sandstone with Quranic calligraphic arches.",
+    name: "The Pedestal & Fort Wood",
+    facts_text:
+      "The statue stands atop a granite pedestal resting on the star-shaped walls of Fort Wood, a military fortification completed in 1811. The pedestal was funded by over 120,000 everyday Americans.",
     pano_heading: 0,
-    pano_pitch: 8,
-    pano_lat: 27.173150,
-    pano_lng: 78.042142,
+    pano_pitch: 15,
+    pano_lat: 40.6891,
+    pano_lng: -74.0446,
     order_index: 1,
   },
   {
     id: 2,
     monument_id: 1,
-    name: "Charbagh & The Long Reflecting Pool",
-    facts_text: "The Persian-style quad garden with reflecting pool creating the famous mirrored vista of the white marble dome.",
-    pano_heading: 0,
-    pano_pitch: 0,
-    pano_lat: 27.174100,
-    pano_lng: 78.042142,
+    name: "The Copper Exterior & Crown",
+    facts_text:
+      "The exterior consists of ~300 copper sheets each only 2.4 mm thick. The crown has 25 windows and 7 rays representing the seven continents and oceans.",
+    pano_heading: 45,
+    pano_pitch: 30,
+    pano_lat: 40.6893,
+    pano_lng: -74.0444,
     order_index: 2,
   },
   {
     id: 3,
     monument_id: 1,
-    name: "The Main Mausoleum & Central Dome",
-    facts_text: "The iconic 35-meter white marble dome decorated with Pietra Dura inlays of 28 types of precious stones.",
-    pano_heading: 0,
-    pano_pitch: 14,
-    pano_lat: 27.175000,
-    pano_lng: 78.042142,
+    name: "The Torch & Flame",
+    facts_text:
+      "The current flame is covered in 24-karat gold leaf, installed during the 1984-1986 centennial restoration. The original copper-and-glass torch is displayed in the pedestal lobby.",
+    pano_heading: 350,
+    pano_pitch: 45,
+    pano_lat: 40.6894,
+    pano_lng: -74.0445,
     order_index: 3,
   },
   {
     id: 4,
     monument_id: 1,
-    name: "Yamuna Riverfront & Mosque Terrace",
-    facts_text: "The northern sandstone terrace overlooking the Yamuna River, flanked by the Mosque and mirror Jawab.",
+    name: "The Tablet & Broken Chains",
+    facts_text:
+      "Liberty holds a tablet inscribed 'JULY IV MDCCLXXVI' (July 4, 1776). At her feet lie broken chains and shackles symbolising the abolition of slavery.",
     pano_heading: 180,
-    pano_pitch: -4,
-    pano_lat: 27.175500,
-    pano_lng: 78.042142,
+    pano_pitch: 5,
+    pano_lat: 40.689,
+    pano_lng: -74.0447,
     order_index: 4,
   },
 ];
@@ -56,42 +63,56 @@ const FALLBACK_PAINTINGS: Painting[] = [
     title: "The Starry Night",
     artist: "Vincent van Gogh",
     year: "1889",
-    facts_text: "Painted in June 1889 from Saint-Paul asylum in Saint-Rémy. Swirling night sky with 11 stars and a cypress tree.",
-    image_path: "https://upload.wikimedia.org/wikipedia/commons/thumb/e/ea/Van_Gogh_-_Starry_Night_-_Google_Art_Project.jpg/1280px-Van_Gogh_-_Starry_Night_-_Google_Art_Project.jpg",
+    facts_text:
+      "Painted in June 1889 from the asylum in Saint-Rémy. Swirling sky vortices, 11 stars, and a towering cypress connecting heaven and earth.",
+    image_path:
+      "https://upload.wikimedia.org/wikipedia/commons/thumb/e/ea/Van_Gogh_-_Starry_Night_-_Google_Art_Project.jpg/1280px-Van_Gogh_-_Starry_Night_-_Google_Art_Project.jpg",
   },
   {
     id: 2,
     title: "Mona Lisa (La Gioconda)",
     artist: "Leonardo da Vinci",
     year: "1503–1519",
-    facts_text: "Portrait of Lisa Gherardini using sfumato technique to blur outlines, known for her subtle shifting smile.",
-    image_path: "https://upload.wikimedia.org/wikipedia/commons/thumb/e/ec/Mona_Lisa%2C_by_Leonardo_da_Vinci%2C_from_C2RMF_retouched.jpg/800px-Mona_Lisa%2C_by_Leonardo_da_Vinci%2C_from_C2RMF_retouched.jpg",
+    facts_text:
+      "Portrait of Lisa Gherardini using sfumato technique. Her ambiguous smile shifts depending on where the viewer focuses.",
+    image_path:
+      "https://upload.wikimedia.org/wikipedia/commons/thumb/e/ec/Mona_Lisa%2C_by_Leonardo_da_Vinci%2C_from_C2RMF_retouched.jpg/800px-Mona_Lisa%2C_by_Leonardo_da_Vinci%2C_from_C2RMF_retouched.jpg",
   },
   {
     id: 3,
-    title: "Under the Wave off Kanagawa",
+    title: "The Great Wave off Kanagawa",
     artist: "Katsushika Hokusai",
     year: "c. 1831",
-    facts_text: "Iconic Japanese woodblock print showing towering rogue waves framing Mount Fuji with synthetic Prussian blue pigment.",
-    image_path: "https://upload.wikimedia.org/wikipedia/commons/thumb/a/a5/Tsunami_by_hokusai_19th_century.jpg/1280px-Tsunami_by_hokusai_19th_century.jpg",
+    facts_text:
+      "First print in 'Thirty-Six Views of Mount Fuji'. Rogue waves over cargo boats with Mt. Fuji in the background. Prussian blue pigment.",
+    image_path:
+      "https://upload.wikimedia.org/wikipedia/commons/thumb/a/a5/Tsunami_by_hokusai_19th_century.jpg/1280px-Tsunami_by_hokusai_19th_century.jpg",
   },
   {
     id: 4,
     title: "Girl with a Pearl Earring",
     artist: "Johannes Vermeer",
     year: "c. 1665",
-    facts_text: "Dutch Golden Age tronie painting of a girl with a turban and oversized pearl earring created with lead white highlights.",
-    image_path: "https://upload.wikimedia.org/wikipedia/commons/thumb/0/0f/1665_Girl_with_a_Pearl_Earring.jpg/800px-1665_Girl_with_a_Pearl_Earring.jpg",
+    facts_text:
+      "Dutch Golden Age 'tronie'. The luminous pearl earring was painted with just two strokes of lead white. Resides in the Mauritshuis, The Hague.",
+    image_path:
+      "https://upload.wikimedia.org/wikipedia/commons/thumb/0/0f/1665_Girl_with_a_Pearl_Earring.jpg/800px-1665_Girl_with_a_Pearl_Earring.jpg",
   },
 ];
 
-export async function fetchMonumentPois(monumentId: number = 1): Promise<POI[]> {
+// ---------------------------------------------------------------------------
+// API functions
+// ---------------------------------------------------------------------------
+
+export async function fetchMonumentPois(
+  monumentId: number = 1,
+): Promise<POI[]> {
   try {
     const res = await fetch(`${API_BASE_URL}/monuments/${monumentId}/pois`);
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     return await res.json();
   } catch (err) {
-    console.warn("Backend unavailable, using fallback POIs:", err);
+    console.warn("Backend unavailable — using fallback POIs:", err);
     return FALLBACK_POIS;
   }
 }
@@ -102,13 +123,13 @@ export async function fetchNarration(poiId: number): Promise<NarrationResponse> 
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     return await res.json();
   } catch (err) {
-    console.warn("Backend unavailable, using fallback narration:", err);
+    console.warn("Backend unavailable — using fallback narration:", err);
     const poi = FALLBACK_POIS.find((p) => p.id === poiId) || FALLBACK_POIS[0];
     return {
-      context_type: 'poi',
+      context_type: "poi",
       context_id: poi.id,
       title: poi.name,
-      narration: `Welcome to ${poi.name}. Take in the view! ${poi.facts_text}`,
+      narration: `Welcome to ${poi.name}. ${poi.facts_text}`,
       facts_text: poi.facts_text,
     };
   }
@@ -120,51 +141,57 @@ export async function fetchPaintings(): Promise<Painting[]> {
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     return await res.json();
   } catch (err) {
-    console.warn("Backend unavailable, using fallback paintings:", err);
+    console.warn("Backend unavailable — using fallback paintings:", err);
     return FALLBACK_PAINTINGS;
   }
 }
 
-export async function fetchPaintingInfo(paintingId: number): Promise<NarrationResponse> {
+export async function fetchPaintingInfo(
+  paintingId: number,
+): Promise<NarrationResponse> {
   try {
     const res = await fetch(`${API_BASE_URL}/painting-info/${paintingId}`);
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     return await res.json();
   } catch (err) {
-    console.warn("Backend unavailable, using fallback painting info:", err);
-    const painting = FALLBACK_PAINTINGS.find((p) => p.id === paintingId) || FALLBACK_PAINTINGS[0];
+    console.warn("Backend unavailable — using fallback painting info:", err);
+    const painting =
+      FALLBACK_PAINTINGS.find((p) => p.id === paintingId) ||
+      FALLBACK_PAINTINGS[0];
     return {
-      context_type: 'painting',
+      context_type: "painting",
       context_id: painting.id,
       title: `${painting.title} by ${painting.artist}`,
-      narration: `Before you is '${painting.title}' created by ${painting.artist} around ${painting.year}. ${painting.facts_text}`,
+      narration: `Before you is '${painting.title}' by ${painting.artist} (${painting.year}). ${painting.facts_text}`,
       facts_text: painting.facts_text,
     };
   }
 }
 
 export async function askQuestion(
-  contextType: 'poi' | 'painting',
+  contextType: "poi" | "painting",
   contextId: number,
-  question: string
+  question: string,
 ): Promise<AskResponse> {
   try {
     const res = await fetch(`${API_BASE_URL}/ask`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         context_type: contextType,
         context_id: contextId,
-        question: question,
+        question,
       }),
     });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     return await res.json();
   } catch (err) {
-    console.warn("Backend unavailable, using fallback answer:", err);
+    console.warn("Backend unavailable — using fallback answer:", err);
     return {
       question,
-      answer: `Great question! In our archives, this work is treasured for its artistry and cultural heritage. You asked "${question}" — notice the intricate details and colors that define this historical treasure.`,
+      answer:
+        "Great question! This piece is treasured for its artistry and cultural heritage. " +
+        "Notice the intricate details and craftsmanship that define this historical treasure.",
       context_type: contextType,
       context_id: contextId,
       context_title: "Heritage Item",

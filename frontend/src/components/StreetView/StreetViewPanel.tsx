@@ -88,12 +88,12 @@ export const StreetViewPanel: React.FC<Props> = ({
     }
   }, [mapsLoaded, currentPoi]);
 
-  // Fallback high-res photographic panoramic view for offline/no-key development
+  // Fallback high-res photographic views for offline/no-key development
   const fallbackImages: Record<number, string> = {
-    1: "https://images.unsplash.com/photo-1564507592333-c60657eea523?auto=format&fit=crop&w=1920&q=80", // Gate
-    2: "https://images.unsplash.com/photo-1548013146-72479768bada?auto=format&fit=crop&w=1920&q=80", // Reflecting Pool
-    3: "https://images.unsplash.com/photo-1587135941948-670b381f08ce?auto=format&fit=crop&w=1920&q=80", // Marble Dome
-    4: "https://images.unsplash.com/photo-1524492412937-b28074a5d7da?auto=format&fit=crop&w=1920&q=80", // Riverfront Terrace
+    1: "https://images.unsplash.com/photo-1605130284535-11dd9eedc58a?auto=format&fit=crop&w=1920&q=80", // Pedestal
+    2: "https://images.unsplash.com/photo-1503572649817-3e3e0c53c891?auto=format&fit=crop&w=1920&q=80", // Copper Exterior
+    3: "https://images.unsplash.com/photo-1485738422979-f5c462d49f04?auto=format&fit=crop&w=1920&q=80", // Torch
+    4: "https://images.unsplash.com/photo-1492666673288-3c4b4f1a5765?auto=format&fit=crop&w=1920&q=80", // Tablet
   };
 
   return (

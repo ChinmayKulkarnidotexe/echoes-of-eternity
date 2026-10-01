@@ -101,13 +101,13 @@ export function App() {
                 </div>
                 <div>
                   <div className="flex items-center gap-2">
-                    <h2 className="text-base sm:text-lg font-bold text-white">The Taj Mahal</h2>
+                    <h2 className="text-base sm:text-lg font-bold text-white">Statue of Liberty</h2>
                     <span className="text-xs px-2 py-0.5 rounded-full bg-emerald-950 text-emerald-300 border border-emerald-800/60 font-medium">
                       UNESCO World Heritage Site
                     </span>
                   </div>
                   <p className="text-xs text-slate-400 flex items-center gap-1 mt-0.5">
-                    <MapPin className="w-3.5 h-3.5 text-purple-400" /> Agra, Uttar Pradesh, India · Verified Street View Panorama
+                    <MapPin className="w-3.5 h-3.5 text-purple-400" /> Liberty Island, New York Harbor, USA
                   </p>
                 </div>
               </div>
@@ -225,7 +225,7 @@ export function App() {
 
       {/* Footer */}
       <footer className="w-full border-t border-slate-800/80 py-4 px-6 text-center text-xs text-slate-500 bg-slate-950/80">
-        ACM x MLH Hack Days 2026 · Track 1 Demo · Powered by Google Maps & Google Gemini API
+        ACM x MLH Hack Days 2026 · Echoes of Eternity · Powered by Google Maps & Google Gemini API
       </footer>
     </div>
   );

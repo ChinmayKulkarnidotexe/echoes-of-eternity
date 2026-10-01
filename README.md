@@ -1,141 +1,118 @@
-# 🏛️ AURA — Immersive AI Heritage & Art Experience
-**ACM x MLH Hack Days 2026 · NMAMIT · Track 1: "What is Earth without art?"**  
-**Team Size:** 2 Developers · **Build Window:** 6 Hours · **Gemini Integration:** Compulsory  
+# 🏛️ Echoes of Eternity — Immersive AI Heritage & Art Experience
+
+**ACM x MLH Hack Days 2026 · NMAMIT · Track 1: "What is Earth without art?"**
+**Team Size:** 2 Developers · **Build Window:** 6 Hours · **Gemini Integration:** Compulsory
 
 ---
 
-## 🌟 Overview
+## Overview
 
-**AURA** transforms passive cultural exploration into an engaging, multi-sensory virtual journey:
-1. **Monument Walkthrough:** Explore a real-world monument (The Taj Mahal) using Google Street View panoramas, auto-guided across 4 key Points of Interest (POIs) with synchronized headings and camera pitch.
-2. **Fine Art Gallery:** Inspect public-domain masterpieces (e.g. *The Starry Night*, *Mona Lisa*, *The Great Wave*, *Girl with a Pearl Earring*) in an interactive 3D textured orbit/tilt plane viewer powered by Three.js.
-3. **Grounded Gemini Docent:** In both modes, visitors can listen to audio tour narration and ask free-form questions via voice (Speech-to-Text) or text, answered in real-time by Google Gemini grounded strictly in historical facts.
+**Echoes of Eternity** transforms passive cultural exploration into an engaging, multi-sensory virtual journey:
+
+1. **Monument Walkthrough** — Explore the **Statue of Liberty** using Google Street View panoramas, auto-guided across 4 Points of Interest (POIs) with synchronised headings and camera pitch.
+2. **Fine Art Gallery** — Inspect public-domain masterpieces (*The Starry Night*, *Mona Lisa*, *The Great Wave*, *Girl with a Pearl Earring*) in an interactive Three.js 3D orbit/tilt viewer.
+3. **Gemini AI Docent** — In both modes, listen to audio narration and ask free-form questions via voice or text, answered by Google Gemini grounded strictly in verified historical facts.
 
 ---
 
-## 📂 Project Architecture & Directory Structure
+## Project Structure
 
 ```
 acm-mlh-hackathon/
-├── .gitignore                      # Ignore node_modules, .venv, *.db, .env
-├── PRD_heritage_gallery_experience.md # Hackathon Product Requirements Document
-├── README.md                       # Main documentation & quickstart
-├── TEAM_SPLIT_GUIDE.md             # 6-Hour synchronized task breakdown for 2 devs
+├── .gitignore
+├── README.md
+├── TEAM_SPLIT_GUIDE.md
+├── PRD_heritage_gallery_experience.md
+├── start-dev.ps1                   # One-click dev launcher (PowerShell)
 │
-├── frontend/                       # [Person A] React + TypeScript + Three.js + Tailwind
-│   ├── .env.example                # VITE_GOOGLE_MAPS_API_KEY, VITE_API_BASE_URL
-│   ├── index.html                  # HTML entrypoint
-│   ├── package.json                # Dependencies: three, lucide-react, @tailwindcss/vite
-│   ├── vite.config.ts              # Vite + React + Tailwind v4 config
-│   ├── src/
-│   │   ├── types/index.ts          # Shared TypeScript interfaces (POI, Painting, Q&A)
-│   │   ├── services/
-│   │   │   ├── api.ts              # API client with offline fallback data
-│   │   │   └── speech.ts           # Web Speech API (TTS & STT)
-│   │   ├── components/
-│   │   │   ├── Navigation/
-│   │   │   │   └── Navbar.tsx      # Tab switcher & header branding
-│   │   │   ├── StreetView/
-│   │   │   │   └── StreetViewPanel.tsx # Google Street View & POI controls
-│   │   │   ├── Gallery/
-│   │   │   │   ├── GalleryGrid.tsx # Art grid cards
-│   │   │   │   └── PaintingViewer.tsx # Three.js 3D textured tilt/orbit viewer
-│   │   │   └── AIGuide/
-│   │   │       └── GuidePanel.tsx  # Narration, audio player, voice STT Q&A
-│   │   ├── App.tsx                 # Main layout & tour auto-advance state
-│   │   ├── main.tsx                # React root mount
-│   │   └── index.css               # Tailwind CSS theme & custom styling
-│   └── dist/                       # Production build artifact
+├── frontend/                       # React + TypeScript + Three.js + Tailwind CSS
+│   ├── .env / .env.example
+│   ├── index.html
+│   ├── package.json
+│   ├── vite.config.ts
+│   └── src/
+│       ├── types/index.ts
+│       ├── services/
+│       │   ├── api.ts              # API client with offline fallbacks
+│       │   └── speech.ts           # Web Speech API (TTS & STT)
+│       ├── components/
+│       │   ├── Navigation/Navbar.tsx
+│       │   ├── StreetView/StreetViewPanel.tsx
+│       │   ├── Gallery/GalleryGrid.tsx
+│       │   ├── Gallery/PaintingViewer.tsx
+│       │   └── AIGuide/GuidePanel.tsx
+│       ├── App.tsx
+│       ├── main.tsx
+│       └── index.css
 │
-└── backend/                        # [Person B] Python FastAPI + Gemini AI + DB
-    ├── .env.example                # GEMINI_API_KEY, DATABASE_URL, GEMINI_MODEL
-    ├── requirements.txt            # fastapi, uvicorn, sqlalchemy, google-generativeai
+└── backend/                        # Python FastAPI + Gemini AI + SQLAlchemy
+    ├── .env / .env.example
+    ├── requirements.txt
     └── app/
-        ├── config.py               # Settings & environment variables
-        ├── database.py             # SQLAlchemy session & SQLite / Postgres engine
-        ├── models.py               # Monument, POI, and Painting ORM models
-        ├── schemas.py              # Pydantic request/response schemas
-        ├── seed.py                 # Initial data: Taj Mahal POIs + 4 paintings
-        ├── gemini_service.py       # Gemini API client, prompts & fallback cache
-        ├── main.py                 # FastAPI application & CORS setup
+        ├── __init__.py
+        ├── config.py
+        ├── database.py
+        ├── models.py               # Monument, POI, Painting
+        ├── schemas.py              # Pydantic request/response models
+        ├── seed.py                 # Statue of Liberty POIs + 4 paintings
+        ├── gemini_service.py       # Gemini prompts, system instruction, fallbacks
+        ├── main.py                 # FastAPI app with async lifespan
         └── routes/
-            ├── monuments.py        # /monuments/{id}/pois, /narrate/{poi_id}
-            ├── paintings.py        # /paintings, /painting-info/{id}
-            └── qa.py               # /ask (grounded Q&A endpoint)
+            ├── __init__.py
+            ├── monuments.py        # GET /monuments/{id}, /monuments/{id}/pois, /narrate/{poi_id}
+            ├── paintings.py        # GET /paintings, /painting-info/{id}
+            └── qa.py               # POST /ask
 ```
 
 ---
 
-## ⚡ Quickstart
+## API Endpoints
 
-### 1. Backend Setup (Person B)
+| Endpoint | Method | Description |
+|---|---|---|
+| `/monuments/{id}` | GET | Full monument metadata with POIs |
+| `/monuments/{id}/pois` | GET | Ordered POI list with pano coordinates |
+| `/narrate/{poi_id}` | GET | Gemini narration for a specific POI |
+| `/paintings` | GET | All gallery paintings |
+| `/painting-info/{id}` | GET | Gemini narration for a painting |
+| `/ask` | POST | Grounded Q&A — body: `{context_type, context_id, question}` |
+| `/health` | GET | Health check |
+
+---
+
+## Quickstart
+
+### Backend (Person B)
+
 ```bash
 cd backend
-
-# Create virtual environment (if not already created)
 python -m venv .venv
-
-# Activate virtual environment
-# Windows PowerShell:
-.venv\Scripts\Activate.ps1
-# Windows CMD:
-# .venv\Scripts\activate.bat
-# Linux/macOS:
-# source .venv/bin/activate
-
-# Install dependencies
+.venv\Scripts\Activate.ps1          # Windows
 pip install -r requirements.txt
-
-# Configure environment variables
-# Copy .env.example to .env and insert your GEMINI_API_KEY
-cp .env.example .env
-
-# Run FastAPI server
+cp .env.example .env                # Add GEMINI_API_KEY
 uvicorn app.main:app --reload --port 8000
 ```
-- API will be live at: `http://localhost:8000`
-- Interactive Swagger docs at: `http://localhost:8000/docs`
 
-### 2. Frontend Setup (Person A)
+API docs → [http://localhost:8000/docs](http://localhost:8000/docs)
+
+### Frontend (Person A)
+
 ```bash
 cd frontend
-
-# Install dependencies
 npm install
-
-# Configure environment variables
-# Copy .env.example to .env and insert your VITE_GOOGLE_MAPS_API_KEY (optional for preview)
-cp .env.example .env
-
-# Start development server
+cp .env.example .env                # Add VITE_GOOGLE_MAPS_API_KEY (optional)
 npm run dev
 ```
-- Web application will be live at: `http://localhost:5173`
+
+App → [http://localhost:5173](http://localhost:5173)
 
 ---
 
-## 🧪 Testing & Verification
+## Risk Mitigations
 
-1. **Verify Backend Health & Seed:**
-   ```bash
-   curl http://localhost:8000/health
-   curl http://localhost:8000/monuments/1/pois
-   curl http://localhost:8000/paintings
-   ```
-2. **Verify AI Grounding Q&A:**
-   ```bash
-   curl -X POST http://localhost:8000/ask \
-     -H "Content-Type: application/json" \
-     -d '{"context_type": "poi", "context_id": 1, "question": "What is written on the gateway?"}'
-   ```
-3. **Verify Frontend Build:**
-   ```bash
-   cd frontend
-   npm run build
-   ```
-
----
-
-## 👥 Hackathon 6-Hour Team Split
-
-See **[TEAM_SPLIT_GUIDE.md](file:///e:/Coding%20Stuff/acm-mlh-hackathon/TEAM_SPLIT_GUIDE.md)** for the complete hour-by-hour synchronization schedule, risk mitigations, and demo rehearsal script.
+| Risk | Mitigation |
+|---|---|
+| No Google Maps API key | Frontend shows high-res photographic fallback with full POI controls |
+| Gemini rate limit / no key | Backend returns pre-cached narrations; frontend has offline fallback data |
+| Database setup delays | SQLite is used by default — zero config, works instantly |
+| Venue wifi drops | Everything runs on localhost; record a backup demo video |
