@@ -1,13 +1,26 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react';
 import * as THREE from 'three';
 import type { Painting, LanguageOption, AccentOption } from '../../types';
-import { X, ZoomIn, ZoomOut, RotateCcw, Eye, BookOpen, Globe } from 'lucide-react';
-import { GalleryVoicePanel } from './GalleryVoicePanel';
+import {
+  X,
+  ZoomIn,
+  ZoomOut,
+  RotateCcw,
+  Eye,
+  BookOpen, Globe,
+  ChevronLeft,
+  ChevronRight,
+  ExternalLink,
+  Layers,
+} from 'lucide-react';
+import { PaintingAskBar } from './PaintingAskBar';
 import { DEFAULT_LANGUAGE, DEFAULT_ACCENT } from '../../data/languages';
 import { getMuseumHeaders } from '../../utils/i18nHeaders';
 
 interface Props {
-  painting: Painting;
+  paintings?: Painting[];
+  painting?: Painting;
+  initialIndex?: number;
   onClose: () => void;
 }
 
@@ -150,7 +163,7 @@ function roundRect(
   ctx.lineTo(x + r, y + h);
   ctx.quadraticCurveTo(x, y + h, x, y + h - r);
   ctx.lineTo(x, y + r);
-  ctx.quadraticCurveTo(x, y, x + r, y);
+  ctx.quadraticCurveTo(x, y + r, x + r, y);
   ctx.closePath();
 }
 
@@ -221,19 +234,16 @@ function buildLabelTexture(
   ctx.fillRect(0, 0, W, H);
 
   // 2. Elegant double borders
-  // Outer gold rim
   ctx.strokeStyle = '#c8922a';
   ctx.lineWidth = 7;
   roundRect(ctx, 18, 18, W - 36, H - 36, 28);
   ctx.stroke();
 
-  // Inner hairline gold frame
   ctx.strokeStyle = '#5a4018';
   ctx.lineWidth = 2;
   roundRect(ctx, 32, 32, W - 64, H - 64, 20);
   ctx.stroke();
 
-  // Corner decorative diamond marks
   ctx.fillStyle = '#d4af37';
   drawDiamond(ctx, 42, 42, 6);
   drawDiamond(ctx, W - 42, 42, 6);
@@ -248,8 +258,8 @@ function buildLabelTexture(
 
   // 4. Painting Title
   ctx.fillStyle = '#fbf7ee';
-  ctx.font = 'bold 50px Georgia, serif';
-  let y = wrapText(ctx, painting.title, 75, 180, W - 150, 60);
+  ctx.font = 'bold 48px Georgia, serif';
+  let y = wrapText(ctx, painting.title, 75, 180, W - 150, 58);
 
   // 5. Artist Name
   ctx.fillStyle = '#c8b69b';
@@ -263,7 +273,6 @@ function buildLabelTexture(
   y += 42;
   ctx.fillText(painting.year, 75, y);
 
-  // Fetch verified museum catalog details
   const details = getPaintingDetails(painting);
   const factsList = customFacts && customFacts.length > 0 ? customFacts : details.facts;
 
@@ -288,7 +297,6 @@ function buildLabelTexture(
   ctx.lineTo(W - 75, y);
   ctx.stroke();
 
-  // Gold center accent on divider
   ctx.fillStyle = '#d4af37';
   drawDiamond(ctx, W / 2, y, 7);
 
@@ -301,11 +309,9 @@ function buildLabelTexture(
   // 11. Iconic Facts with Gold Diamond Bullets
   y += 52;
   for (const fact of factsList) {
-    // Diamond bullet
     ctx.fillStyle = '#d4af37';
     drawDiamond(ctx, 84, y - 9, 8);
 
-    // Fact text with clean word-wrap
     ctx.fillStyle = '#ded9ce';
     ctx.font = '28px Georgia, serif';
     const nextY = wrapText(ctx, fact, 118, y, W - 195, 42);
@@ -318,14 +324,158 @@ function buildLabelTexture(
   return texture;
 }
 
-export const PaintingViewer: React.FC<Props> = ({ painting, onClose }) => {
+// ── Realistic Wood Parquet Floor Texture ─────────────────────
+function createWoodParquetTexture(): THREE.CanvasTexture {
+  const S = 1024;
+  const c = document.createElement('canvas');
+  c.width = S;
+  c.height = S;
+  const ctx = c.getContext('2d')!;
+
+  ctx.fillStyle = '#221914';
+  ctx.fillRect(0, 0, S, S);
+
+  const tile = 128;
+  const plankW = 32;
+
+  for (let y = 0; y < S; y += tile) {
+    for (let x = 0; x < S; x += tile) {
+      const isHorizontal = ((x / tile) + (y / tile)) % 2 === 0;
+
+      for (let p = 0; p < tile; p += plankW) {
+        const shade = 34 + Math.floor(Math.random() * 18);
+        const redShade = shade + 8;
+        ctx.fillStyle = `rgb(${redShade}, ${shade}, ${Math.max(16, shade - 10)})`;
+
+        if (isHorizontal) {
+          ctx.fillRect(x, y + p, tile, plankW - 2);
+          ctx.strokeStyle = '#140e0b';
+          ctx.lineWidth = 2;
+          ctx.strokeRect(x, y + p, tile, plankW - 2);
+        } else {
+          ctx.fillRect(x + p, y, plankW - 2, tile);
+          ctx.strokeStyle = '#140e0b';
+          ctx.lineWidth = 2;
+          ctx.strokeRect(x + p, y, plankW - 2, tile);
+        }
+      }
+    }
+  }
+
+  const tex = new THREE.CanvasTexture(c);
+  tex.wrapS = THREE.RepeatWrapping;
+  tex.wrapT = THREE.RepeatWrapping;
+  tex.repeat.set(5, 7);
+  return tex;
+}
+
+// ── Skylight Texture ─────────────────────────────────────────
+function createSkylightTexture(): THREE.CanvasTexture {
+  const S = 512;
+  const c = document.createElement('canvas');
+  c.width = S;
+  c.height = S;
+  const ctx = c.getContext('2d')!;
+
+  ctx.fillStyle = '#eaf2f8';
+  ctx.fillRect(0, 0, S, S);
+
+  const grad = ctx.createRadialGradient(S / 2, S / 2, 40, S / 2, S / 2, S / 2);
+  grad.addColorStop(0, '#ffffff');
+  grad.addColorStop(0.7, '#d6e6f5');
+  grad.addColorStop(1, '#b0cbe3');
+  ctx.fillStyle = grad;
+  ctx.fillRect(0, 0, S, S);
+
+  ctx.strokeStyle = '#32363e';
+  ctx.lineWidth = 14;
+  const step = 64;
+  for (let i = step; i < S; i += step) {
+    ctx.beginPath();
+    ctx.moveTo(i, 0);
+    ctx.lineTo(i, S);
+    ctx.stroke();
+
+    ctx.beginPath();
+    ctx.moveTo(0, i);
+    ctx.lineTo(S, i);
+    ctx.stroke();
+  }
+
+  const tex = new THREE.CanvasTexture(c);
+  tex.wrapS = THREE.RepeatWrapping;
+  tex.wrapT = THREE.RepeatWrapping;
+  tex.repeat.set(2, 6);
+  return tex;
+}
+
+// ── Station Configuration Interface ─────────────────────────
+interface StationConfig {
+  paintingPos: THREE.Vector3;
+  paintingRotY: number;
+  standPos: THREE.Vector3;
+  standRotY: number;
+  baseTheta: number; // Natural view angle facing the artwork
+  standFocusPos: THREE.Vector3;
+}
+
+// 4 Exhibition bays in the Grand Museum Hall
+const STATIONS: StationConfig[] = [
+  // 0. West Wall (Bay 1) — Starry Night
+  {
+    paintingPos: new THREE.Vector3(-9.82, 3.8, -5.5),
+    paintingRotY: Math.PI / 2,
+    standPos: new THREE.Vector3(-9.2, 0, -3.1),
+    standRotY: Math.PI / 2 - 0.35,
+    baseTheta: Math.PI / 2, // camera in +X looking -X
+    standFocusPos: new THREE.Vector3(-9.2, 1.5, -3.1),
+  },
+  // 1. North Honor Wall (Center) — Mona Lisa
+  {
+    paintingPos: new THREE.Vector3(0, 3.8, -14.82),
+    paintingRotY: 0,
+    standPos: new THREE.Vector3(2.5, 0, -14.2),
+    standRotY: -0.35,
+    baseTheta: 0, // camera in +Z looking -Z
+    standFocusPos: new THREE.Vector3(2.5, 1.5, -14.2),
+  },
+  // 2. East Wall (Bay 1) — The Great Wave
+  {
+    paintingPos: new THREE.Vector3(9.82, 3.8, -5.5),
+    paintingRotY: -Math.PI / 2,
+    standPos: new THREE.Vector3(9.2, 0, -3.1),
+    standRotY: -Math.PI / 2 + 0.35,
+    baseTheta: -Math.PI / 2, // camera in -X looking +X
+    standFocusPos: new THREE.Vector3(9.2, 1.5, -3.1),
+  },
+  // 3. East Wall (Bay 2) — Girl with a Pearl Earring
+  {
+    paintingPos: new THREE.Vector3(9.82, 3.8, 5.5),
+    paintingRotY: -Math.PI / 2,
+    standPos: new THREE.Vector3(9.2, 0, 7.9),
+    standRotY: -Math.PI / 2 - 0.35,
+    baseTheta: -Math.PI / 2, // camera in -X looking +X
+    standFocusPos: new THREE.Vector3(9.2, 1.5, 7.9),
+  },
+];
+
+export const PaintingViewer: React.FC<Props> = ({
+  paintings = [],
+  painting,
+  initialIndex = 0,
+  onClose,
+}) => {
+  const allPaintings = paintings.length > 0 ? paintings : painting ? [painting] : [];
+  const [currentIndex, setCurrentIndex] = useState(
+    Math.max(0, Math.min(initialIndex, Math.max(0, allPaintings.length - 1))),
+  );
+
   const mountRef = useRef<HTMLDivElement>(null);
   const rendererRef = useRef<THREE.WebGLRenderer | null>(null);
   const cameraRef = useRef<THREE.PerspectiveCamera | null>(null);
-  const canvasMeshRef = useRef<THREE.Mesh | null>(null);
-  const plaqueMeshRef = useRef<THREE.Group | null>(null);
   const labelMeshRef = useRef<THREE.Mesh | null>(null);
   const animIdRef = useRef<number>(0);
+
 
   // Language & Accent State
   const [language, setLanguage] = useState<LanguageOption>(DEFAULT_LANGUAGE);
@@ -333,52 +483,101 @@ export const PaintingViewer: React.FC<Props> = ({ painting, onClose }) => {
   const [isLangDropdownOpen, setIsLangDropdownOpen] = useState(false);
 
   const [loading, setLoading] = useState(true);
-  const [zoom, setZoom] = useState(1.0);
   const [currentView, setCurrentView] = useState<'both' | 'painting' | 'stand'>('both');
+  const [showSketchfabModal, setShowSketchfabModal] = useState(false);
 
-  // Spherical camera orbit state
-  const sph = useRef({ theta: 0.12, phi: Math.PI / 2, r: 5.4 });
-  const lookTarget = useRef(new THREE.Vector3(0.5, 0.2, 0));
+  // References for raycasting
+  const canvasMeshesRef = useRef<(THREE.Mesh | null)[]>([]);
+  const standGroupsRef = useRef<(THREE.Group | null)[]>([]);
+
+  // ── True Spherical Orbit Camera State ───────────────────────
+  // Target values (where camera wants to move to)
+  const targetCenter = useRef(new THREE.Vector3(-9.5, 3.4, -4.3));
+  const targetRadius = useRef(4.8);
+  const targetTheta = useRef(Math.PI / 2);
+  const targetPhi = useRef(Math.PI / 2);
+
+  // Current values (smoothly lerped each frame in render loop)
+  const currentCenter = useRef(new THREE.Vector3(-9.5, 3.4, -4.3));
+  const currentRadius = useRef(4.8);
+  const currentTheta = useRef(Math.PI / 2);
+  const currentPhi = useRef(Math.PI / 2);
+
+  // Mouse drag tracking
   const dragging = useRef(false);
   const lastMouse = useRef({ x: 0, y: 0 });
   const downPos = useRef({ x: 0, y: 0 });
 
-  const updateCamera = useCallback(() => {
-    const cam = cameraRef.current;
-    if (!cam) return;
-    const { theta, phi, r } = sph.current;
-    const target = lookTarget.current;
-    cam.position.set(
-      target.x + r * Math.sin(phi) * Math.sin(theta),
-      target.y + r * Math.cos(phi),
-      target.z + r * Math.sin(phi) * Math.cos(theta),
-    );
-    cam.lookAt(target);
+  const activePainting = allPaintings[currentIndex] || painting || null;
+
+  // ── Update Camera Target Presets ────────────────────────────
+  const applyViewMode = useCallback((stationIdx: number, view: 'both' | 'painting' | 'stand') => {
+    const station = STATIONS[stationIdx % STATIONS.length];
+    if (!station) return;
+
+    if (view === 'painting') {
+      // Direct close-up centered on the painting canvas
+      targetCenter.current.copy(station.paintingPos);
+      targetRadius.current = 3.3;
+      targetTheta.current = station.baseTheta;
+      targetPhi.current = Math.PI / 2;
+    } else if (view === 'stand') {
+      // Close-up angled onto the museum stanchion stand
+      targetCenter.current.copy(station.standFocusPos);
+      targetRadius.current = 1.85;
+      targetTheta.current = station.baseTheta + (station.baseTheta === 0 ? -0.3 : 0.25);
+      targetPhi.current = Math.PI / 2 - 0.22;
+    } else {
+      // Room View: wide overview framing both painting and stand
+      const midpoint = new THREE.Vector3()
+        .addVectors(station.paintingPos, station.standFocusPos)
+        .multiplyScalar(0.5);
+      targetCenter.current.copy(midpoint);
+      targetRadius.current = 5.2;
+      targetTheta.current = station.baseTheta;
+      targetPhi.current = Math.PI / 2 - 0.05;
+    }
   }, []);
 
-  const focusPainting = useCallback(() => {
-    setCurrentView('painting');
-    lookTarget.current.set(0, 0.5, 0);
-    sph.current = { theta: 0, phi: Math.PI / 2, r: 4.8 };
-    setZoom(1.1);
-    updateCamera();
-  }, [updateCamera]);
+  // Update target when station index or view mode changes
+  useEffect(() => {
+    applyViewMode(currentIndex, currentView);
+  }, [currentIndex, currentView, applyViewMode]);
 
-  const focusStand = useCallback(() => {
-    setCurrentView('stand');
-    lookTarget.current.set(2.45, -0.38, 0.9);
-    sph.current = { theta: -0.34, phi: Math.PI / 2 - 0.2, r: 2.1 };
-    setZoom(2.6);
-    updateCamera();
-  }, [updateCamera]);
-
-  const focusOverview = useCallback(() => {
+  // ── Station Navigation (Next / Prev) ────────────────────────
+  const goToNext = useCallback(() => {
+    if (allPaintings.length <= 1) return;
+    setCurrentIndex((prev) => (prev + 1) % allPaintings.length);
     setCurrentView('both');
-    lookTarget.current.set(0.6, 0.15, 0);
-    sph.current = { theta: 0.12, phi: Math.PI / 2, r: 5.4 };
-    setZoom(1.0);
-    updateCamera();
-  }, [updateCamera]);
+  }, [allPaintings.length]);
+
+  const goToPrev = useCallback(() => {
+    if (allPaintings.length <= 1) return;
+    setCurrentIndex((prev) => (prev - 1 + allPaintings.length) % allPaintings.length);
+    setCurrentView('both');
+  }, [allPaintings.length]);
+
+  // ── Keyboard Shortcuts (Arrow Keys & Mode Keys) ────────────
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (showSketchfabModal) return;
+      if (e.key === 'ArrowRight') {
+        goToNext();
+      } else if (e.key === 'ArrowLeft') {
+        goToPrev();
+      } else if (e.key === '1' || e.key.toLowerCase() === 'r') {
+        setCurrentView('both');
+      } else if (e.key === '2' || e.key.toLowerCase() === 'a') {
+        setCurrentView('painting');
+      } else if (e.key === '3' || e.key.toLowerCase() === 's') {
+        setCurrentView('stand');
+      } else if (e.key === 'Escape') {
+        onClose();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [goToNext, goToPrev, onClose, showSketchfabModal]);
 
   // Update Stand Plaque Canvas Texture on language change
   useEffect(() => {
@@ -390,336 +589,449 @@ export const PaintingViewer: React.FC<Props> = ({ painting, onClose }) => {
     }
   }, [painting, language.id]);
 
+  // ── Initialize Scene Once (Mounts 1 Time) ───────────────────
   useEffect(() => {
     const el = mountRef.current;
     if (!el) return;
     const W = el.clientWidth || window.innerWidth;
     const H = el.clientHeight || window.innerHeight;
 
-    // ── Renderer ──────────────────────────────────────────────
+    // Renderer
     const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
     renderer.setSize(W, H);
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     renderer.shadowMap.enabled = true;
     renderer.shadowMap.type = THREE.PCFSoftShadowMap;
-    renderer.toneMapping = THREE.NoToneMapping;
+    renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    renderer.toneMappingExposure = 1.05;
     renderer.outputColorSpace = THREE.SRGBColorSpace;
     rendererRef.current = renderer;
     el.appendChild(renderer.domElement);
 
-    // ── Scene ─────────────────────────────────────────────────
+    // Scene
     const scene = new THREE.Scene();
-    scene.background = new THREE.Color(0x080608);
-    scene.fog = new THREE.FogExp2(0x080608, 0.035);
+    scene.background = new THREE.Color(0x0e1015);
+    scene.fog = new THREE.FogExp2(0x0e1015, 0.016);
 
-    // ── Camera ────────────────────────────────────────────────
-    const camera = new THREE.PerspectiveCamera(46, W / H, 0.1, 80);
+    // Camera
+    const camera = new THREE.PerspectiveCamera(46, W / H, 0.1, 100);
     cameraRef.current = camera;
-    updateCamera();
 
-    // ── Room Architecture ─────────────────────────────────────
-    // Polished dark floor
-    const floor = new THREE.Mesh(
-      new THREE.PlaneGeometry(26, 26),
-      new THREE.MeshStandardMaterial({ color: 0x0c0a0c, roughness: 0.28, metalness: 0.55 }),
+    // Set initial position based on initialIndex
+    const startStation = STATIONS[initialIndex % STATIONS.length] || STATIONS[0];
+    const initialMid = new THREE.Vector3()
+      .addVectors(startStation.paintingPos, startStation.standFocusPos)
+      .multiplyScalar(0.5);
+
+    targetCenter.current.copy(initialMid);
+    currentCenter.current.copy(initialMid);
+    targetRadius.current = 5.2;
+    currentRadius.current = 5.2;
+    targetTheta.current = startStation.baseTheta;
+    currentTheta.current = startStation.baseTheta;
+    targetPhi.current = Math.PI / 2 - 0.05;
+    currentPhi.current = Math.PI / 2 - 0.05;
+
+    camera.position.set(
+      initialMid.x + 5.2 * Math.sin(Math.PI / 2 - 0.05) * Math.sin(startStation.baseTheta),
+      initialMid.y + 5.2 * Math.cos(Math.PI / 2 - 0.05),
+      initialMid.z + 5.2 * Math.sin(Math.PI / 2 - 0.05) * Math.cos(startStation.baseTheta),
     );
+    camera.lookAt(initialMid);
+
+    // ── 1. Architecture: Floor, Walls, Skylight ───────────────
+    // Parquet Wood Floor
+    const floorTex = createWoodParquetTexture();
+    const floorMat = new THREE.MeshStandardMaterial({
+      map: floorTex,
+      roughness: 0.35,
+      metalness: 0.15,
+    });
+    const floor = new THREE.Mesh(new THREE.PlaneGeometry(20, 30), floorMat);
     floor.rotation.x = -Math.PI / 2;
-    floor.position.y = -3.8;
+    floor.position.set(0, 0, 0);
     floor.receiveShadow = true;
     scene.add(floor);
 
-    // Walls
-    const wallMat = new THREE.MeshStandardMaterial({ color: 0x0e0b0e, roughness: 0.88 });
-    const backWall = new THREE.Mesh(new THREE.PlaneGeometry(26, 16), wallMat);
-    backWall.position.set(0, 4, -7);
-    backWall.receiveShadow = true;
-    scene.add(backWall);
-
-    [[-13, 0, Math.PI / 2], [13, 0, -Math.PI / 2]].forEach(([x, , ry]) => {
-      const w = new THREE.Mesh(new THREE.PlaneGeometry(16, 16), wallMat);
-      w.rotation.y = ry as number;
-      w.position.set(x as number, 4, 0);
-      scene.add(w);
+    // Charcoal Museum Walls
+    const wallMat = new THREE.MeshStandardMaterial({
+      color: 0x14161b,
+      roughness: 0.88,
+      metalness: 0.05,
     });
 
-    const ceiling = new THREE.Mesh(
-      new THREE.PlaneGeometry(26, 26),
-      new THREE.MeshStandardMaterial({ color: 0x0a080b }),
+    // West Wall (Left)
+    const westWall = new THREE.Mesh(new THREE.PlaneGeometry(30, 11), wallMat);
+    westWall.position.set(-10, 5.5, 0);
+    westWall.rotation.y = Math.PI / 2;
+    westWall.receiveShadow = true;
+    scene.add(westWall);
+
+    // East Wall (Right)
+    const eastWall = new THREE.Mesh(new THREE.PlaneGeometry(30, 11), wallMat);
+    eastWall.position.set(10, 5.5, 0);
+    eastWall.rotation.y = -Math.PI / 2;
+    eastWall.receiveShadow = true;
+    scene.add(eastWall);
+
+    // North Wall (Honor Back Wall)
+    const northWall = new THREE.Mesh(new THREE.PlaneGeometry(20, 11), wallMat);
+    northWall.position.set(0, 5.5, -15);
+    northWall.receiveShadow = true;
+    scene.add(northWall);
+
+    // South Wall (Entryway)
+    const southWall = new THREE.Mesh(new THREE.PlaneGeometry(20, 11), wallMat);
+    southWall.position.set(0, 5.5, 15);
+    southWall.rotation.y = Math.PI;
+    southWall.receiveShadow = true;
+    scene.add(southWall);
+
+    // Illuminated Entryway Arch at South Wall
+    const doorLightMesh = new THREE.Mesh(
+      new THREE.PlaneGeometry(3.6, 6.2),
+      new THREE.MeshBasicMaterial({ color: 0xfff3e0 }),
     );
-    ceiling.rotation.x = Math.PI / 2;
-    ceiling.position.y = 8;
-    scene.add(ceiling);
+    doorLightMesh.position.set(0, 3.1, 14.95);
+    doorLightMesh.rotation.y = Math.PI;
+    scene.add(doorLightMesh);
 
-    // ── Rich Lighting Rig ─────────────────────────────────────
-    scene.add(new THREE.AmbientLight(0xfff0e6, 0.58));
+    // Coved Upper Ceiling Trim
+    const covedMat = new THREE.MeshStandardMaterial({ color: 0xd8d4cb, roughness: 0.9 });
+    const ceilingFrame = new THREE.Mesh(new THREE.PlaneGeometry(20, 30), covedMat);
+    ceilingFrame.position.set(0, 11, 0);
+    ceilingFrame.rotation.x = Math.PI / 2;
+    scene.add(ceilingFrame);
 
-    // ① Main Painting Spotlight
-    const spotMain = new THREE.SpotLight(0xfff6e4, 5.5, 24, Math.PI / 7.2, 0.28, 1.0);
-    spotMain.position.set(0, 7, 3.8);
-    spotMain.target.position.set(0, 0.5, 0);
-    spotMain.castShadow = true;
-    spotMain.shadow.mapSize.set(2048, 2048);
-    scene.add(spotMain, spotMain.target);
+    // Central Vaulted Arched Glass Skylight
+    const skylightTex = createSkylightTexture();
+    const skylightMesh = new THREE.Mesh(
+      new THREE.PlaneGeometry(8, 22),
+      new THREE.MeshBasicMaterial({
+        map: skylightTex,
+        transparent: true,
+        opacity: 0.92,
+      }),
+    );
+    skylightMesh.position.set(0, 10.92, -1);
+    skylightMesh.rotation.x = Math.PI / 2;
+    scene.add(skylightMesh);
 
-    // ② Close Front Fill for painting brilliance
-    const ptFront = new THREE.PointLight(0xffeedd, 2.8, 7, 1.0);
-    ptFront.position.set(0, 0.8, 2.6);
-    scene.add(ptFront);
+    // Central Exhibition Elements
+    const platMat = new THREE.MeshStandardMaterial({ color: 0x16171b, roughness: 0.4, metalness: 0.3 });
+    const platform = new THREE.Mesh(new THREE.BoxGeometry(4.8, 0.45, 8.4), platMat);
+    platform.position.set(0, 0.225, -2);
+    platform.receiveShadow = true;
+    platform.castShadow = true;
+    scene.add(platform);
 
-    // ③ Left Kicker Light
-    const spotLeft = new THREE.SpotLight(0xffe2c4, 2.5, 18, Math.PI / 8, 0.5, 1.2);
-    spotLeft.position.set(-4.5, 5, 4);
-    spotLeft.target.position.set(0, 0.5, 0);
-    scene.add(spotLeft, spotLeft.target);
+    const benchMat = new THREE.MeshStandardMaterial({ color: 0x101012, roughness: 0.6, metalness: 0.1 });
+    const bench = new THREE.Mesh(new THREE.BoxGeometry(1.4, 0.48, 2.6), benchMat);
+    bench.position.set(0, 0.24, 6.5);
+    bench.receiveShadow = true;
+    bench.castShadow = true;
+    scene.add(bench);
 
-    // ④ Dedicated Museum Stand Spotlight
-    const spotStand = new THREE.SpotLight(0xfff2d4, 4.8, 14, Math.PI / 6.5, 0.4, 1.0);
-    spotStand.position.set(4.2, 4.8, 3.2);
-    spotStand.target.position.set(2.45, -0.38, 0.9);
-    scene.add(spotStand, spotStand.target);
+    // Perimeter Stanchion Rails
+    const brassMat = new THREE.MeshStandardMaterial({ color: 0x7a602a, metalness: 0.85, roughness: 0.3 });
+    const postGeo = new THREE.CylinderGeometry(0.035, 0.045, 0.65, 12);
+    for (let z = -12; z <= 12; z += 3) {
+      const postL = new THREE.Mesh(postGeo, brassMat);
+      postL.position.set(-8.5, 0.325, z);
+      scene.add(postL);
 
-    // ⑤ Stand Glow PointLight
-    const ptStand = new THREE.PointLight(0xffdfa0, 2.6, 5.5, 1.0);
-    ptStand.position.set(2.45, 0.35, 1.6);
-    scene.add(ptStand);
+      const postR = new THREE.Mesh(postGeo, brassMat);
+      postR.position.set(8.5, 0.325, z);
+      scene.add(postR);
+    }
 
-    // ⑥ Rear depth rim
-    const rimBack = new THREE.PointLight(0x351a4f, 2.0, 10, 1.2);
-    rimBack.position.set(0, 1, -5);
-    scene.add(rimBack);
+    // Ambient & Skylight Lighting
+    const skylightLight = new THREE.DirectionalLight(0xe8f0ff, 1.4);
+    skylightLight.position.set(0, 10.5, 0);
+    skylightLight.target.position.set(0, 0, 0);
+    scene.add(skylightLight, skylightLight.target);
 
-    // ── 3D MUSEUM STAND WITH DETAILS PLAQUE ────────────────────
-    const bronzeMat = new THREE.MeshStandardMaterial({
+    const amb = new THREE.AmbientLight(0xfff1e0, 0.65);
+    scene.add(amb);
+
+    const doorPoint = new THREE.PointLight(0xffeedd, 1.8, 12, 1.2);
+    doorPoint.position.set(0, 3.2, 13.5);
+    scene.add(doorPoint);
+
+    // ── 2. Build Painting Stations with Gilded Frames & Stands ──
+    const loader = new THREE.TextureLoader();
+    loader.setCrossOrigin('anonymous');
+
+    const goldFrameMat = new THREE.MeshStandardMaterial({
+      color: 0x9e7328,
+      roughness: 0.32,
+      metalness: 0.85,
+    });
+    const bronzeStandMat = new THREE.MeshStandardMaterial({
       color: 0x5a3d16,
       roughness: 0.35,
       metalness: 0.82,
     });
-    const frameMat = new THREE.MeshStandardMaterial({
+    const standFrameMat = new THREE.MeshStandardMaterial({
       color: 0x1f1810,
       roughness: 0.45,
       metalness: 0.65,
     });
 
-    const standGroup = new THREE.Group();
+    canvasMeshesRef.current = [];
+    standGroupsRef.current = [];
 
-    // 1. Heavy circular base plate
-    const base = new THREE.Mesh(new THREE.CylinderGeometry(0.32, 0.38, 0.08, 32), bronzeMat);
-    base.position.set(2.45, -3.76, 0.9);
-    base.receiveShadow = true;
-    standGroup.add(base);
+    allPaintings.forEach((p, idx) => {
+      const station = STATIONS[idx % STATIONS.length];
+      if (!station) return;
 
-    const baseRing = new THREE.Mesh(new THREE.CylinderGeometry(0.18, 0.22, 0.04, 32), bronzeMat);
-    baseRing.position.set(2.45, -3.71, 0.9);
-    standGroup.add(baseRing);
+      // Dedicated Spotlights
+      const spot = new THREE.SpotLight(0xfff7e8, 5.8, 16, Math.PI / 7, 0.3, 1.0);
+      const spotPos = station.paintingPos.clone().add(new THREE.Vector3(0, 4.5, 0));
+      if (Math.abs(station.paintingRotY - Math.PI / 2) < 0.1) spotPos.x += 3.5;
+      else if (Math.abs(station.paintingRotY) < 0.1) spotPos.z += 3.5;
+      else spotPos.x -= 3.5;
 
-    // 2. Upright stanchion post
-    const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.026, 0.034, 2.7, 16), bronzeMat);
-    pole.position.set(2.45, -2.35, 0.9);
-    pole.castShadow = true;
-    standGroup.add(pole);
+      spot.position.copy(spotPos);
+      spot.target.position.copy(station.paintingPos);
+      spot.castShadow = true;
+      spot.shadow.mapSize.set(1024, 1024);
+      scene.add(spot, spot.target);
 
-    const collar = new THREE.Mesh(new THREE.CylinderGeometry(0.045, 0.045, 0.06, 16), bronzeMat);
-    collar.position.set(2.45, -0.98, 0.9);
-    standGroup.add(collar);
+      const fillPt = new THREE.PointLight(0xffedd8, 1.8, 6, 1.2);
+      const fillPos = station.paintingPos.clone();
+      if (Math.abs(station.paintingRotY - Math.PI / 2) < 0.1) fillPos.x += 1.8;
+      else if (Math.abs(station.paintingRotY) < 0.1) fillPos.z += 1.8;
+      else fillPos.x -= 1.8;
+      fillPt.position.copy(fillPos);
+      scene.add(fillPt);
 
-    // 3. Plaque Group (angled toward viewer)
-    const plaqueG = new THREE.Group();
-    plaqueG.position.set(2.45, -0.38, 0.9);
-    plaqueG.rotation.x = -0.2;
-    plaqueG.rotation.y = -0.34;
+      // Painting Group
+      const paintingGroup = new THREE.Group();
+      paintingGroup.position.copy(station.paintingPos);
+      paintingGroup.rotation.y = station.paintingRotY;
 
-    const plaqueWidth = 0.96;
-    const plaqueHeight = 1.38;
-    const plaqueDepth = 0.04;
+      loader.load(
+        p.image_path,
+        (tex) => {
+          tex.generateMipmaps = true;
+          tex.minFilter = THREE.LinearMipmapLinearFilter;
+          tex.anisotropy = renderer.capabilities.getMaxAnisotropy();
 
-    // Backing box
-    const plaqueBg = new THREE.Mesh(
-      new THREE.BoxGeometry(plaqueWidth, plaqueHeight, plaqueDepth),
-      frameMat,
-    );
-    plaqueG.add(plaqueBg);
+          const aspect = tex.image.width / tex.image.height;
+          let pw = 3.2;
+          let ph = 3.2 / aspect;
+          if (ph > 2.8) {
+            ph = 2.8;
+            pw = ph * aspect;
+          }
 
-    // Raised bronze border trims
-    const borderThick = 0.035;
-    const borderDepth = 0.052;
+          const canvasMesh = new THREE.Mesh(
+            new THREE.PlaneGeometry(pw, ph),
+            new THREE.MeshStandardMaterial({ map: tex, roughness: 0.45, metalness: 0.0 }),
+          );
+          canvasMesh.position.set(0, 0, 0.02);
+          canvasMesh.castShadow = true;
+          paintingGroup.add(canvasMesh);
+          canvasMeshesRef.current[idx] = canvasMesh;
 
-    const topRail = new THREE.Mesh(
-      new THREE.BoxGeometry(plaqueWidth + 0.04, borderThick, borderDepth),
-      bronzeMat,
-    );
-    topRail.position.set(0, plaqueHeight / 2 + borderThick / 2, 0.006);
-    plaqueG.add(topRail);
+          // Ornate Frame
+          const ft = 0.12;
+          const fd = 0.16;
+          const fTop = new THREE.Mesh(new THREE.BoxGeometry(pw + ft * 2, ft, fd), goldFrameMat);
+          fTop.position.set(0, ph / 2 + ft / 2, -fd / 4);
+          paintingGroup.add(fTop);
 
-    const botRail = new THREE.Mesh(
-      new THREE.BoxGeometry(plaqueWidth + 0.04, borderThick, borderDepth),
-      bronzeMat,
-    );
-    botRail.position.set(0, -plaqueHeight / 2 - borderThick / 2, 0.006);
-    plaqueG.add(botRail);
+          const fBot = new THREE.Mesh(new THREE.BoxGeometry(pw + ft * 2, ft, fd), goldFrameMat);
+          fBot.position.set(0, -ph / 2 - ft / 2, -fd / 4);
+          paintingGroup.add(fBot);
 
-    const leftStile = new THREE.Mesh(
-      new THREE.BoxGeometry(borderThick, plaqueHeight + borderThick * 2, borderDepth),
-      bronzeMat,
-    );
-    leftStile.position.set(-plaqueWidth / 2 - borderThick / 2, 0, 0.006);
-    plaqueG.add(leftStile);
+          const fLeft = new THREE.Mesh(new THREE.BoxGeometry(ft, ph + ft * 2, fd), goldFrameMat);
+          fLeft.position.set(-pw / 2 - ft / 2, 0, -fd / 4);
+          paintingGroup.add(fLeft);
 
-    const rightStile = new THREE.Mesh(
-      new THREE.BoxGeometry(borderThick, plaqueHeight + borderThick * 2, borderDepth),
-      bronzeMat,
-    );
-    rightStile.position.set(plaqueWidth / 2 + borderThick / 2, 0, 0.006);
-    plaqueG.add(rightStile);
+          const fRight = new THREE.Mesh(new THREE.BoxGeometry(ft, ph + ft * 2, fd), goldFrameMat);
+          fRight.position.set(pw / 2 + ft / 2, 0, -fd / 4);
+          paintingGroup.add(fRight);
 
-    // 4. Baked High-DPI Museum Label Plaque Face
-    const labelTex = buildLabelTexture(painting, language.id);
-    const labelMesh = new THREE.Mesh(
-      new THREE.PlaneGeometry(plaqueWidth - 0.02, plaqueHeight - 0.02),
-      new THREE.MeshBasicMaterial({ map: labelTex }),
-    );
-    labelMesh.position.set(0, 0, plaqueDepth / 2 + 0.002);
-    plaqueG.add(labelMesh);
-    labelMeshRef.current = labelMesh;
+          if (idx === allPaintings.length - 1) {
+            setLoading(false);
+          }
+        },
+        undefined,
+        () => {
+          const fallback = new THREE.Mesh(
+            new THREE.PlaneGeometry(2.6, 2.6),
+            new THREE.MeshStandardMaterial({ color: 0x3d284a }),
+          );
+          paintingGroup.add(fallback);
+          canvasMeshesRef.current[idx] = fallback;
+          setLoading(false);
+        },
+      );
+      scene.add(paintingGroup);
 
-    plaqueMeshRef.current = plaqueG;
-    standGroup.add(plaqueG);
-    scene.add(standGroup);
+      // 3D Bronze Stanchion Stand with High-DPI Plaque
+      const standGroup = new THREE.Group();
+      standGroup.position.copy(station.standPos);
+      standGroup.rotation.y = station.standRotY;
 
-    // ── Load Painting Texture ─────────────────────────────────
-    const loader = new THREE.TextureLoader();
-    loader.setCrossOrigin('anonymous');
+      const base = new THREE.Mesh(new THREE.CylinderGeometry(0.32, 0.38, 0.08, 32), bronzeStandMat);
+      base.position.set(0, 0.04, 0);
+      standGroup.add(base);
 
-    loader.load(
-      painting.image_path,
-      (tex) => {
-        tex.generateMipmaps = true;
-        tex.minFilter = THREE.LinearMipmapLinearFilter;
-        tex.anisotropy = renderer.capabilities.getMaxAnisotropy();
+      const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.026, 0.034, 1.45, 16), bronzeStandMat);
+      pole.position.set(0, 0.76, 0);
+      standGroup.add(pole);
 
-        const aspect = tex.image.width / tex.image.height;
-        let pw = 3.1;
-        let ph = 3.1 / aspect;
-        if (ph > 2.9) {
-          ph = 2.9;
-          pw = ph * aspect;
-        }
+      const plaqueG = new THREE.Group();
+      plaqueG.position.set(0, 1.52, 0);
+      plaqueG.rotation.x = -0.22;
 
-        const canvasMesh = new THREE.Mesh(
-          new THREE.PlaneGeometry(pw, ph),
-          new THREE.MeshStandardMaterial({ map: tex, roughness: 0.5, metalness: 0.0 }),
-        );
-        canvasMesh.position.set(0, 0.5, 0);
-        canvasMesh.castShadow = true;
-        scene.add(canvasMesh);
-        canvasMeshRef.current = canvasMesh;
+      const plaqueW = 0.94;
+      const plaqueH = 1.34;
+      const plaqueD = 0.04;
 
-        // Elegant ornate gilded frame
-        const frameGold = new THREE.MeshStandardMaterial({
-          color: 0x9e7328,
-          roughness: 0.32,
-          metalness: 0.85,
-        });
-        const ft = 0.12;
-        const fd = 0.16;
+      const plaqueBg = new THREE.Mesh(
+        new THREE.BoxGeometry(plaqueW, plaqueH, plaqueD),
+        standFrameMat,
+      );
+      plaqueG.add(plaqueBg);
 
-        const fTop = new THREE.Mesh(new THREE.BoxGeometry(pw + ft * 2, ft, fd), frameGold);
-        fTop.position.set(0, 0.5 + ph / 2 + ft / 2, -fd / 4);
-        scene.add(fTop);
+      const bt = 0.03;
+      const topRail = new THREE.Mesh(new THREE.BoxGeometry(plaqueW + 0.03, bt, bt * 1.5), bronzeStandMat);
+      topRail.position.set(0, plaqueH / 2 + bt / 2, 0.005);
+      plaqueG.add(topRail);
 
-        const fBot = new THREE.Mesh(new THREE.BoxGeometry(pw + ft * 2, ft, fd), frameGold);
-        fBot.position.set(0, 0.5 - ph / 2 - ft / 2, -fd / 4);
-        scene.add(fBot);
+      const botRail = new THREE.Mesh(new THREE.BoxGeometry(plaqueW + 0.03, bt, bt * 1.5), bronzeStandMat);
+      botRail.position.set(0, -plaqueH / 2 - bt / 2, 0.005);
+      plaqueG.add(botRail);
 
-        const fLeft = new THREE.Mesh(new THREE.BoxGeometry(ft, ph + ft * 2, fd), frameGold);
-        fLeft.position.set(-pw / 2 - ft / 2, 0.5, -fd / 4);
-        scene.add(fLeft);
+      const lStile = new THREE.Mesh(new THREE.BoxGeometry(bt, plaqueH + bt * 2, bt * 1.5), bronzeStandMat);
+      lStile.position.set(-plaqueW / 2 - bt / 2, 0, 0.005);
+      plaqueG.add(lStile);
 
-        const fRight = new THREE.Mesh(new THREE.BoxGeometry(ft, ph + ft * 2, fd), frameGold);
-        fRight.position.set(pw / 2 + ft / 2, 0.5, -fd / 4);
-        scene.add(fRight);
+      const rStile = new THREE.Mesh(new THREE.BoxGeometry(bt, plaqueH + bt * 2, bt * 1.5), bronzeStandMat);
+      rStile.position.set(plaqueW / 2 + bt / 2, 0, 0.005);
+      plaqueG.add(rStile);
 
-        setLoading(false);
-      },
-      undefined,
-      () => {
-        const fb = new THREE.Mesh(
-          new THREE.PlaneGeometry(2.6, 3.2),
-          new THREE.MeshStandardMaterial({ color: 0x4f3a6e }),
-        );
-        fb.position.set(0, 0.5, 0);
-        scene.add(fb);
-        setLoading(false);
-      },
-    );
+      const labelTex = buildLabelTexture(p);
+      const labelMesh = new THREE.Mesh(
+        new THREE.PlaneGeometry(plaqueW - 0.02, plaqueH - 0.02),
+        new THREE.MeshBasicMaterial({ map: labelTex }),
+      );
+      labelMesh.position.set(0, 0, plaqueD / 2 + 0.002);
+      plaqueG.add(labelMesh);
 
-    // ── Render Loop ───────────────────────────────────────────
+      standGroup.add(plaqueG);
+      scene.add(standGroup);
+      standGroupsRef.current[idx] = standGroup;
+
+      const standSpot = new THREE.SpotLight(0xfff3d8, 3.2, 8, Math.PI / 6.5, 0.4, 1.0);
+      standSpot.position.copy(station.standPos).add(new THREE.Vector3(0.5, 3.2, 1.2));
+      standSpot.target.position.copy(station.standPos).add(new THREE.Vector3(0, 1.4, 0));
+      scene.add(standSpot, standSpot.target);
+    });
+
+    // ── 3. Render Loop: Continuous Smooth Spherical Interpolation ──
     const animate = () => {
       animIdRef.current = requestAnimationFrame(animate);
+
+      // Smooth lerp of focal center, radius, azimuth theta, and polar phi
+      const lerpSpeed = 0.065;
+      currentCenter.current.lerp(targetCenter.current, lerpSpeed);
+      currentRadius.current += (targetRadius.current - currentRadius.current) * lerpSpeed;
+      currentTheta.current += (targetTheta.current - currentTheta.current) * lerpSpeed;
+      currentPhi.current += (targetPhi.current - currentPhi.current) * lerpSpeed;
+
+      if (cameraRef.current) {
+        const center = currentCenter.current;
+        const r = currentRadius.current;
+        const th = currentTheta.current;
+        const ph = currentPhi.current;
+
+        // Spherical coordinate position
+        cameraRef.current.position.set(
+          center.x + r * Math.sin(ph) * Math.sin(th),
+          center.y + r * Math.cos(ph),
+          center.z + r * Math.sin(ph) * Math.cos(th),
+        );
+        cameraRef.current.lookAt(center);
+      }
+
       renderer.render(scene, camera);
     };
     animate();
 
-    // ── Resize ────────────────────────────────────────────────
+    // ── 4. Window Resize ───────────────────────────────────────
     const onResize = () => {
       if (!el || !cameraRef.current || !rendererRef.current) return;
-      const nw = el.clientWidth, nh = el.clientHeight;
+      const nw = el.clientWidth;
+      const nh = el.clientHeight;
       cameraRef.current.aspect = nw / nh;
       cameraRef.current.updateProjectionMatrix();
       rendererRef.current.setSize(nw, nh);
     };
     window.addEventListener('resize', onResize);
 
-    // ── Mouse / Touch Orbit Controls ──────────────────────────
+    // ── 5. Full 3D Mouse Orbit Rotation & Raycast Click ────────
     const dom = renderer.domElement;
     const raycaster = new THREE.Raycaster();
     const mouseCoord = new THREE.Vector2();
 
-    const onDown = (e: MouseEvent) => {
+    const onMouseDown = (e: MouseEvent) => {
       dragging.current = true;
       lastMouse.current = { x: e.clientX, y: e.clientY };
       downPos.current = { x: e.clientX, y: e.clientY };
     };
 
-    const onMove = (e: MouseEvent) => {
+    const onMouseMove = (e: MouseEvent) => {
       if (!dragging.current) return;
       const dx = e.clientX - lastMouse.current.x;
       const dy = e.clientY - lastMouse.current.y;
       lastMouse.current = { x: e.clientX, y: e.clientY };
 
-      sph.current.theta -= dx * 0.005;
-      sph.current.phi -= dy * 0.005;
-      sph.current.theta = Math.max(-1.3, Math.min(1.3, sph.current.theta));
-      sph.current.phi = Math.max(0.4, Math.min(1.9, sph.current.phi));
-      updateCamera();
+      // Sensitivity factor
+      const sensitivity = 0.005;
+
+      // Rotate camera around target focal point in 3D
+      targetTheta.current -= dx * sensitivity;
+      targetPhi.current -= dy * sensitivity;
+
+      // Clamp polar angle so user doesn't flip upside down
+      targetPhi.current = Math.max(0.2, Math.min(Math.PI - 0.2, targetPhi.current));
     };
 
-    const onUp = (e: MouseEvent) => {
+    const onMouseUp = (e: MouseEvent) => {
       dragging.current = false;
-
-      // Click to focus: if not dragged, raycast click on Stand or Painting
       const dist = Math.hypot(e.clientX - downPos.current.x, e.clientY - downPos.current.y);
-      if (dist < 6) {
+
+      // Clean click (not a drag): raycast to focus painting or stand
+      if (dist < 6 && cameraRef.current) {
         const rect = dom.getBoundingClientRect();
         mouseCoord.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
         mouseCoord.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
-        raycaster.setFromCamera(mouseCoord, camera);
+        raycaster.setFromCamera(mouseCoord, cameraRef.current);
 
-        const targets = [plaqueMeshRef.current, canvasMeshRef.current].filter(Boolean) as THREE.Object3D[];
+        const currentCanvas = canvasMeshesRef.current[currentIndex];
+        const currentStand = standGroupsRef.current[currentIndex];
+        const targets = [currentCanvas, currentStand].filter(Boolean) as THREE.Object3D[];
+
         const hits = raycaster.intersectObjects(targets, true);
         if (hits.length > 0) {
           let hit = hits[0].object;
           let isStand = false;
           while (hit) {
-            if (hit === plaqueMeshRef.current) {
+            if (hit === currentStand) {
               isStand = true;
               break;
             }
             hit = hit.parent as THREE.Object3D;
           }
           if (isStand) {
-            focusStand();
+            setCurrentView('stand');
           } else {
-            focusPainting();
+            setCurrentView('painting');
           }
         }
       }
@@ -727,56 +1039,58 @@ export const PaintingViewer: React.FC<Props> = ({ painting, onClose }) => {
 
     const onWheel = (e: WheelEvent) => {
       e.preventDefault();
-      sph.current.r = Math.max(1.8, Math.min(9.5, sph.current.r + e.deltaY * 0.005));
-      setZoom(+(5.4 / sph.current.r).toFixed(1));
-      updateCamera();
+      // Adjust target radius smoothly
+      targetRadius.current = Math.max(1.6, Math.min(8.0, targetRadius.current + e.deltaY * 0.004));
     };
 
-    dom.addEventListener('mousedown', onDown);
-    window.addEventListener('mousemove', onMove);
-    window.addEventListener('mouseup', onUp);
+    dom.addEventListener('mousedown', onMouseDown);
+    window.addEventListener('mousemove', onMouseMove);
+    window.addEventListener('mouseup', onMouseUp);
     dom.addEventListener('wheel', onWheel, { passive: false });
 
     return () => {
       cancelAnimationFrame(animIdRef.current);
       window.removeEventListener('resize', onResize);
-      dom.removeEventListener('mousedown', onDown);
-      window.removeEventListener('mousemove', onMove);
-      window.removeEventListener('mouseup', onUp);
+      dom.removeEventListener('mousedown', onMouseDown);
+      window.removeEventListener('mousemove', onMouseMove);
+      window.removeEventListener('mouseup', onMouseUp);
       dom.removeEventListener('wheel', onWheel);
       if (el.contains(dom)) el.removeChild(dom);
       renderer.dispose();
     };
-  }, [painting, updateCamera, focusPainting, focusStand]);
+  }, []); // Run ONCE on mount so scene is never torn down on station changes
 
-  const doZoom = (delta: number) => {
-    sph.current.r = Math.max(1.8, Math.min(9.5, sph.current.r + delta));
-    setZoom(+(5.4 / sph.current.r).toFixed(1));
-    updateCamera();
+  // ── Manual Zoom +/- Controls ────────────────────────────────
+  const doZoom = (deltaFactor: number) => {
+    targetRadius.current = Math.max(1.6, Math.min(8.0, targetRadius.current + deltaFactor));
   };
 
   const resetCam = () => {
-    focusOverview();
+    setCurrentView('both');
+    applyViewMode(currentIndex, 'both');
   };
 
   return (
-    <div className="relative w-full h-full" style={{ minHeight: '100vh' }}>
-      {/* Three.js mount */}
+    <div className="relative w-full h-full select-none" style={{ minHeight: '100vh' }}>
+      {/* Three.js Canvas Mount */}
       <div
         ref={mountRef}
         className="w-full h-full cursor-grab active:cursor-grabbing"
         style={{ minHeight: '100vh' }}
       />
 
-      {/* Loading Indicator */}
+      {/* Loading Screen */}
       {loading && (
         <div
           className="absolute inset-0 z-50 flex flex-col items-center justify-center"
           style={{ background: 'rgba(8,6,8,0.97)' }}
         >
-          <div className="w-10 h-10 border-2 border-amber-500/30 border-t-amber-400 rounded-full animate-spin mb-4" />
-          <p className="font-display text-amber-200/70 text-lg font-light">
-            Illuminating the gallery & museum stand…
+          <div className="w-12 h-12 border-2 border-amber-500/30 border-t-amber-400 rounded-full animate-spin mb-4" />
+          <p className="font-display text-amber-200/90 text-xl font-light">
+            Entering the Grand VR Museum Gallery…
+          </p>
+          <p className="text-xs text-stone-500 mt-2 font-light">
+            Illuminating exhibition bays & museum stands
           </p>
         </div>
       )}
@@ -786,16 +1100,22 @@ export const PaintingViewer: React.FC<Props> = ({ painting, onClose }) => {
         className="absolute top-0 left-0 right-0 z-30 flex items-center justify-between px-7 py-5 pointer-events-none"
         style={{ background: 'linear-gradient(to bottom, rgba(8,6,8,0.95) 0%, transparent 100%)' }}
       >
-        <div className="flex flex-col gap-0.5">
-          <h2 className="font-display text-amber-100" style={{ fontSize: '1.45rem', fontWeight: 400 }}>
-            {painting.title}
-          </h2>
+        {/* Active Painting Title & Bay Info */}
+        <div className="flex flex-col gap-0.5 pointer-events-auto">
+          <div className="flex items-center gap-2">
+            <span className="text-[10px] uppercase font-mono px-2.5 py-0.5 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/30">
+              Bay {currentIndex + 1} of {allPaintings.length}
+            </span>
+            <h2 className="font-display text-amber-100" style={{ fontSize: '1.45rem', fontWeight: 400 }}>
+              {activePainting?.title || 'Masterpiece'}
+            </h2>
+          </div>
           <p className="text-xs text-stone-400 font-light">
-            {painting.artist} · {painting.year}
+            {activePainting?.artist} · {activePainting?.year}
           </p>
         </div>
 
-        {/* View mode switcher & Language Selector */}
+        {/* View Mode Switcher (Room View / Artwork Focus / Stand Details) & Language Selector */}
         <div className="flex items-center gap-3">
           {/* Language Selector Button */}
           <button
@@ -814,45 +1134,45 @@ export const PaintingViewer: React.FC<Props> = ({ painting, onClose }) => {
           <div
             className="pointer-events-auto flex items-center gap-1 p-1 rounded-full"
             style={{
-              background: 'rgba(18,14,10,0.85)',
+              background: 'rgba(18,14,10,0.88)',
               border: '1px solid rgba(212,175,55,0.25)',
               backdropFilter: 'blur(16px)',
             }}
           >
             <button
               id="view-overview"
-              onClick={focusOverview}
+              onClick={() => setCurrentView('both')}
               className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium transition-all ${
                 currentView === 'both'
-                  ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30'
+                  ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30 shadow-[0_0_12px_rgba(212,175,55,0.2)]'
                   : 'text-stone-400 hover:text-stone-200'
               }`}
-              title="Overview of room and stand"
+              title="Overview of room and stand (Key: 1 or R)"
             >
               <Eye className="w-3.5 h-3.5" />
-              Room
+              Room View
             </button>
             <button
               id="view-painting"
-              onClick={focusPainting}
+              onClick={() => setCurrentView('painting')}
               className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium transition-all ${
                 currentView === 'painting'
-                  ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30'
+                  ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30 shadow-[0_0_12px_rgba(212,175,55,0.2)]'
                   : 'text-stone-400 hover:text-stone-200'
               }`}
-              title="Focus close-up on artwork"
+              title="Focus close-up on artwork (Key: 2 or A)"
             >
               Artwork
             </button>
             <button
               id="view-stand"
-              onClick={focusStand}
+              onClick={() => setCurrentView('stand')}
               className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium transition-all ${
                 currentView === 'stand'
-                  ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30'
+                  ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30 shadow-[0_0_12px_rgba(212,175,55,0.2)]'
                   : 'text-stone-400 hover:text-stone-200'
               }`}
-              title="Read museum label stand details up close"
+              title="Read museum label stand details up close (Key: 3 or S)"
             >
               <BookOpen className="w-3.5 h-3.5" />
               Stand Details
@@ -860,20 +1180,73 @@ export const PaintingViewer: React.FC<Props> = ({ painting, onClose }) => {
           </div>
         </div>
 
-        <button
-          id="close-gallery-room"
-          onClick={onClose}
-          className="pointer-events-auto flex items-center gap-1.5 text-xs text-stone-300 hover:text-white transition-colors px-4 py-2 rounded-full"
-          style={{
-            background: 'rgba(255,255,255,0.08)',
-            border: '1px solid rgba(255,255,255,0.12)',
-            backdropFilter: 'blur(12px)',
-          }}
-        >
-          <X className="w-3.5 h-3.5" />
-          Exit Gallery
-        </button>
+        {/* Right Actions */}
+        <div className="pointer-events-auto flex items-center gap-2">
+          {/* Sketchfab Original 3D Room Embed Button */}
+          <button
+            id="open-sketchfab-modal"
+            onClick={() => setShowSketchfabModal(true)}
+            className="flex items-center gap-1.5 text-xs text-amber-300 hover:text-white transition-colors px-3 py-2 rounded-full"
+            style={{
+              background: 'rgba(212,175,55,0.12)',
+              border: '1px solid rgba(212,175,55,0.3)',
+              backdropFilter: 'blur(12px)',
+            }}
+            title="View original Sketchfab 3D room showcase"
+          >
+            <Layers className="w-3.5 h-3.5" />
+            <span>Sketchfab 3D Room</span>
+          </button>
+
+          {/* Close Gallery */}
+          <button
+            id="close-gallery-room"
+            onClick={onClose}
+            className="flex items-center gap-1.5 text-xs text-stone-300 hover:text-white transition-colors px-4 py-2 rounded-full"
+            style={{
+              background: 'rgba(255,255,255,0.08)',
+              border: '1px solid rgba(255,255,255,0.12)',
+              backdropFilter: 'blur(12px)',
+            }}
+          >
+            <X className="w-3.5 h-3.5" />
+            Exit Gallery
+          </button>
+        </div>
       </div>
+
+      {/* Floating Left / Right Painting Navigation Chevrons */}
+      {allPaintings.length > 1 && !loading && (
+        <>
+          <button
+            id="prev-painting-btn"
+            onClick={goToPrev}
+            className="absolute left-6 top-1/2 -translate-y-1/2 z-30 p-3.5 rounded-full text-stone-300 hover:text-amber-300 hover:scale-110 active:scale-95 transition-all shadow-xl group"
+            style={{
+              background: 'rgba(14,11,8,0.85)',
+              border: '1px solid rgba(212,175,55,0.35)',
+              backdropFilter: 'blur(16px)',
+            }}
+            title="Previous Masterpiece (← Arrow Key)"
+          >
+            <ChevronLeft className="w-6 h-6 transition-transform group-hover:-translate-x-0.5" />
+          </button>
+
+          <button
+            id="next-painting-btn"
+            onClick={goToNext}
+            className="absolute right-6 top-1/2 -translate-y-1/2 z-30 p-3.5 rounded-full text-stone-300 hover:text-amber-300 hover:scale-110 active:scale-95 transition-all shadow-xl group"
+            style={{
+              background: 'rgba(14,11,8,0.85)',
+              border: '1px solid rgba(212,175,55,0.35)',
+              backdropFilter: 'blur(16px)',
+            }}
+            title="Next Masterpiece (→ Arrow Key)"
+          >
+            <ChevronRight className="w-6 h-6 transition-transform group-hover:translate-x-0.5" />
+          </button>
+        </>
+      )}
 
       {/* Floating Zoom & Perspective Controls (Top-right) */}
       {!loading && (
@@ -887,16 +1260,15 @@ export const PaintingViewer: React.FC<Props> = ({ painting, onClose }) => {
         >
           <button
             id="zoom-in"
-            onClick={() => doZoom(-0.8)}
+            onClick={() => doZoom(-0.7)}
             className="p-1.5 text-stone-400 hover:text-amber-300 transition-colors"
             title="Zoom In"
           >
             <ZoomIn className="w-4 h-4" />
           </button>
-          <span className="text-[10px] font-mono text-amber-400">{zoom}×</span>
           <button
             id="zoom-out"
-            onClick={() => doZoom(0.8)}
+            onClick={() => doZoom(0.7)}
             className="p-1.5 text-stone-400 hover:text-amber-300 transition-colors"
             title="Zoom Out"
           >
@@ -907,26 +1279,133 @@ export const PaintingViewer: React.FC<Props> = ({ painting, onClose }) => {
             id="reset-cam"
             onClick={resetCam}
             className="p-1.5 text-stone-400 hover:text-amber-300 transition-colors"
-            title="Reset Perspective"
+            title="Reset Perspective (Room View)"
           >
             <RotateCcw className="w-4 h-4" />
           </button>
         </div>
       )}
 
-      {/* Voice narration & Gemini AI audio Q&A Panel with upward Language Dropdown */}
-      {!loading && (
-        <GalleryVoicePanel
-          painting={painting}
-          currentLanguage={language}
-          currentAccent={accent}
-          onSelectLanguage={(newLang, newAccent) => {
-            setLanguage(newLang);
-            setAccent(newAccent);
+      {/* AI Curator Ask Bar */}
+      {!loading && activePainting && <PaintingAskBar painting={activePainting} />}
+
+      {/* Bottom Masterpiece Quick-Jump Strip */}
+      {allPaintings.length > 1 && !loading && (
+        <div
+          className="absolute bottom-4 left-1/2 -translate-x-1/2 z-20 flex items-center gap-2 px-4 py-1.5 rounded-full shadow-2xl"
+          style={{
+            background: 'rgba(10,8,6,0.88)',
+            border: '1px solid rgba(212,175,55,0.25)',
+            backdropFilter: 'blur(20px)',
           }}
-          isOpenDropdown={isLangDropdownOpen}
-          onToggleDropdown={() => setIsLangDropdownOpen((p) => !p)}
-        />
+        >
+          <span className="text-[10px] text-stone-400 font-mono tracking-wider uppercase mr-1">
+            Masterpieces:
+          </span>
+          {allPaintings.map((p, idx) => (
+            <button
+              key={p.id || idx}
+              onClick={() => {
+                setCurrentIndex(idx);
+                setCurrentView('both');
+              }}
+              className={`flex items-center gap-2 px-3 py-1 rounded-full text-xs font-medium transition-all ${
+                idx === currentIndex
+                  ? 'bg-amber-500/25 text-amber-200 border border-amber-500/50 shadow-[0_0_12px_rgba(212,175,55,0.35)]'
+                  : 'text-stone-400 hover:text-stone-200 hover:bg-white/5 border border-transparent'
+              }`}
+            >
+              <span
+                className={`w-1.5 h-1.5 rounded-full ${
+                  idx === currentIndex ? 'bg-amber-400' : 'bg-stone-600'
+                }`}
+              />
+              <span className="truncate max-w-[130px]">{p.title}</span>
+            </button>
+          ))}
+        </div>
+      )}
+
+      {/* Subtle Interaction Guide at Bottom-Right */}
+      {!loading && (
+        <div className="absolute bottom-4 right-7 z-20 pointer-events-none hidden md:flex items-center gap-3 text-[11px] text-stone-500 font-light">
+          <span>Drag mouse to orbit 360°</span>
+          <span>·</span>
+          <span>Wheel to zoom</span>
+          <span>·</span>
+          <span>Click canvas or stand to focus</span>
+        </div>
+      )}
+
+      {/* ── Sketchfab Original Model Modal ────────────────────── */}
+      {showSketchfabModal && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-6"
+          style={{ background: 'rgba(4,3,5,0.92)', backdropFilter: 'blur(16px)' }}
+        >
+          <div
+            className="relative w-full max-w-5xl h-[82vh] rounded-3xl overflow-hidden flex flex-col"
+            style={{
+              background: '#0d0f14',
+              border: '1px solid rgba(212,175,55,0.3)',
+              boxShadow: '0 25px 60px -15px rgba(0,0,0,0.8), 0 0 40px rgba(212,175,55,0.15)',
+            }}
+          >
+            {/* Modal Header */}
+            <div className="flex items-center justify-between px-6 py-4 border-b border-white/[0.08] bg-black/40">
+              <div className="flex items-center gap-3">
+                <span className="px-2.5 py-1 rounded-full text-[10px] font-mono uppercase bg-amber-500/20 text-amber-300 border border-amber-500/30">
+                  Sketchfab 3D Embed
+                </span>
+                <h3 className="font-display text-stone-100 text-lg">
+                  VR Gallery for Product Showcase 2021 by BehNaM
+                </h3>
+              </div>
+
+              <div className="flex items-center gap-3">
+                <a
+                  href="https://sketchfab.com/3d-models/vr-gallery-for-product-showcase-2021-f2e60fcc4ab1467dbf8632fff422b4b7"
+                  target="_blank"
+                  rel="noreferrer"
+                  className="flex items-center gap-1.5 text-xs text-amber-300 hover:text-white transition-colors px-3 py-1.5 rounded-full bg-white/5 border border-white/10"
+                >
+                  <ExternalLink className="w-3.5 h-3.5" />
+                  <span>Sketchfab Link</span>
+                </a>
+                <button
+                  onClick={() => setShowSketchfabModal(false)}
+                  className="p-1.5 rounded-full text-stone-400 hover:text-white hover:bg-white/10 transition-colors"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+            </div>
+
+            {/* Modal Content: The Exact Sketchfab Embed iframe */}
+            <div className="flex-1 w-full h-full bg-black relative">
+              <iframe
+                title="VR Gallery for Product Showcase 2021"
+                allowFullScreen
+                allow="autoplay; fullscreen; xr-spatial-tracking"
+                src="https://sketchfab.com/models/f2e60fcc4ab1467dbf8632fff422b4b7/embed?autostart=1"
+                className="w-full h-full"
+              />
+            </div>
+
+            {/* Modal Footer */}
+            <div className="px-6 py-3 border-t border-white/[0.08] bg-black/60 flex items-center justify-between text-xs text-stone-400">
+              <p>
+                Interactive 3D tour features native fixed-station exhibition bays, 3D museum stands, and smooth orbit navigation.
+              </p>
+              <button
+                onClick={() => setShowSketchfabModal(false)}
+                className="px-4 py-1.5 rounded-full bg-amber-500/20 text-amber-300 hover:bg-amber-500/30 transition-colors border border-amber-500/40 text-xs font-medium"
+              >
+                Back to Interactive Tour
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

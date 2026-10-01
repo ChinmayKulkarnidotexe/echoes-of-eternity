@@ -10,19 +10,20 @@ interface Props {
 
 export const PaintingsPage: React.FC<Props> = ({ onBack }) => {
   const [paintings, setPaintings] = useState<Painting[]>([]);
-  const [selectedPainting, setSelectedPainting] = useState<Painting | null>(null);
+  const [selectedIndex, setSelectedIndex] = useState<number | null>(null);
 
   useEffect(() => {
     fetchPaintings().then(setPaintings);
   }, []);
 
-  // ── Full-screen gallery room ────────────────────────────────
-  if (selectedPainting) {
+  // ── Full-screen 3D Grand Gallery Room ────────────────────────
+  if (selectedIndex !== null && paintings.length > 0) {
     return (
       <div className="fixed inset-0 z-[200] bg-[#04050a]">
         <PaintingViewer
-          painting={selectedPainting}
-          onClose={() => setSelectedPainting(null)}
+          paintings={paintings}
+          initialIndex={selectedIndex}
+          onClose={() => setSelectedIndex(null)}
         />
       </div>
     );
@@ -58,17 +59,37 @@ export const PaintingsPage: React.FC<Props> = ({ onBack }) => {
       {/* Main */}
       <main className="flex-1 max-w-6xl w-full mx-auto px-5 py-12">
         {/* Heading */}
-        <div className="animate-fade-up text-center mb-12 flex flex-col items-center gap-3">
+        <div className="animate-fade-up text-center mb-10 flex flex-col items-center gap-3">
           <h2
             className="font-display text-stone-100"
             style={{ fontSize: 'clamp(1.8rem, 5vw, 3rem)', fontWeight: 300 }}
           >
             Curated Masterpieces
           </h2>
-          <div className="w-16 h-px bg-gradient-to-r from-transparent via-violet-400/50 to-transparent" />
-          <p className="text-sm text-stone-500 font-light">
-            Hover to reveal the artwork · Click to enter the immersive gallery room
+          <div className="w-16 h-px bg-gradient-to-r from-transparent via-amber-400/50 to-transparent" />
+          <p className="text-sm text-stone-400 font-light max-w-lg">
+            Step inside our 3D Grand Gallery hall with high-ceiling skylights, dedicated exhibition bays, and 3D museum stands.
           </p>
+
+          {/* Quick Enter 3D Room CTA */}
+          {paintings.length > 0 && (
+            <button
+              id="enter-3d-gallery-btn"
+              onClick={() => setSelectedIndex(0)}
+              className="mt-3 flex items-center gap-2.5 px-6 py-3 rounded-full text-sm font-medium text-amber-100 transition-all hover:scale-105 active:scale-98 shadow-xl"
+              style={{
+                background: 'linear-gradient(135deg, rgba(212,175,55,0.3) 0%, rgba(180,120,40,0.2) 100%)',
+                border: '1px solid rgba(212,175,55,0.45)',
+                boxShadow: '0 0 25px rgba(212,175,55,0.18)',
+              }}
+            >
+              <span className="text-base">🏛️</span>
+              <span>Enter 3D Grand Gallery Tour</span>
+              <span className="text-xs text-amber-300 font-mono ml-1 px-2 py-0.5 rounded-full bg-black/40 border border-amber-500/20">
+                3D Exhibition Hall
+              </span>
+            </button>
+          )}
         </div>
 
         {/* Grid */}
@@ -82,7 +103,7 @@ export const PaintingsPage: React.FC<Props> = ({ onBack }) => {
               <button
                 key={painting.id}
                 id={`painting-card-${painting.id}`}
-                onClick={() => setSelectedPainting(painting)}
+                onClick={() => setSelectedIndex(i)}
                 className="painting-card group relative rounded-2xl overflow-hidden cursor-pointer text-left"
                 style={{
                   aspectRatio: '3/4',
